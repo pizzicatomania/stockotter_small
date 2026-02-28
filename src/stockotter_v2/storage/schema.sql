@@ -49,3 +49,35 @@ CREATE TABLE IF NOT EXISTS candidates (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS paper_positions (
+    ticker TEXT PRIMARY KEY,
+    state TEXT NOT NULL,
+    entry_price REAL NOT NULL,
+    qty_total REAL NOT NULL,
+    qty_remaining REAL NOT NULL,
+    entry_date TEXT NOT NULL,
+    last_close REAL NOT NULL,
+    updated_at TEXT NOT NULL,
+    highest_close_since_tp REAL,
+    exit_price REAL,
+    exit_date TEXT,
+    sideways_days INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_paper_positions_state ON paper_positions (state);
+
+CREATE TABLE IF NOT EXISTS paper_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticker TEXT NOT NULL,
+    event_date TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    price REAL NOT NULL,
+    quantity REAL NOT NULL,
+    state_before TEXT NOT NULL,
+    state_after TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_paper_events_ticker_date ON paper_events (ticker, event_date);

@@ -63,6 +63,12 @@ Score clustered representative events and export top candidates:
 PYTHONPATH=src .venv/bin/python -m stockotter_small score --since-hours 24 --top 10 --json-out data/candidates_top10.json
 ```
 
+Update paper-trading positions from daily close CSV (`ticker,date,close`) in EOD mode:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m stockotter_small paper step --prices data/daily_close.csv --asof 2026-02-28
+```
+
 Filter eligible universe from market snapshot CSV:
 
 ```bash

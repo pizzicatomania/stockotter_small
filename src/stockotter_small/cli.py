@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import csv
 import json
 import logging
+from datetime import date
 from pathlib import Path
 
 import typer
@@ -10,6 +12,7 @@ from stockotter_v2 import load_config
 from stockotter_v2.clusterer import TfidfClusterer
 from stockotter_v2.llm import GeminiClient, LLMStructurer
 from stockotter_v2.news.naver_fetcher import NaverNewsFetcher
+from stockotter_v2.paper import apply_eod_rules, create_entry_position
 from stockotter_v2.schemas import Candidate, NewsItem, now_in_seoul
 from stockotter_v2.scoring import RuleBasedScorer, build_score_weights
 from stockotter_v2.storage import FileCache, Repository
@@ -23,8 +26,10 @@ logging.basicConfig(
 app = typer.Typer(help="StockOtter Small CLI")
 debug_app = typer.Typer(help="Debug commands")
 universe_app = typer.Typer(help="Universe commands")
+paper_app = typer.Typer(help="Paper trading commands")
 app.add_typer(debug_app, name="debug")
 app.add_typer(universe_app, name="universe")
+app.add_typer(paper_app, name="paper")
 
 
 @app.command()
@@ -258,6 +263,80 @@ def score_candidates(
         typer.echo(f"json_out={json_out}")
 
 
+@paper_app.command("step")
+def paper_step(
+    prices: Path = typer.Option(
+        ...,
+        "--prices",
+        help="CSV path with ticker,date,close columns.",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+    ),
+    asof: str = typer.Option(
+        ...,
+        "--asof",
+        help="As-of date (YYYY-MM-DD).",
+    ),
+    db_path: Path = typer.Option(
+        Path("data/storage/stockotter.db"),
+        "--db-path",
+        help="SQLite DB file path.",
+    ),
+) -> None:
+    """Apply EOD paper-trading state transitions from daily close CSV."""
+    repo = Repository(db_path)
+    try:
+        asof_date = date.fromisoformat(asof)
+    except ValueError as exc:
+        typer.echo(f"invalid --asof date: {asof}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    try:
+        price_by_ticker = _load_daily_close_for_date(prices, asof=asof_date)
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    if not price_by_ticker:
+        typer.echo(f"asof={asof_date.isoformat()} prices=0 updated=0 new_entries=0 events=0")
+        return
+
+    updated_count = 0
+    new_entries = 0
+    event_count = 0
+    for ticker in sorted(price_by_ticker):
+        close = price_by_ticker[ticker]
+        position = repo.get_paper_position(ticker)
+        if position is None:
+            repo.upsert_paper_position(
+                create_entry_position(
+                    ticker=ticker,
+                    entry_price=close,
+                    entry_date=asof_date,
+                )
+            )
+            updated_count += 1
+            new_entries += 1
+            continue
+
+        next_position, events = apply_eod_rules(position, close=close, asof=asof_date)
+        repo.upsert_paper_position(next_position)
+        for event in events:
+            repo.insert_paper_event(event)
+        updated_count += 1
+        event_count += len(events)
+
+    typer.echo(
+        "asof="
+        f"{asof_date.isoformat()} "
+        f"prices={len(price_by_ticker)} "
+        f"updated={updated_count} "
+        f"new_entries={new_entries} "
+        f"events={event_count}"
+    )
+
+
 @universe_app.command("filter")
 def universe_filter(
     market_snapshot: Path = typer.Option(
@@ -401,6 +480,37 @@ def _load_tickers(path: Path) -> list[str]:
         seen.add(line)
         tickers.append(line)
     return tickers
+
+
+def _load_daily_close_for_date(path: Path, *, asof: date) -> dict[str, float]:
+    with path.open(encoding="utf-8", newline="") as fp:
+        reader = csv.DictReader(fp)
+        required_columns = {"ticker", "date", "close"}
+        if reader.fieldnames is None or not required_columns.issubset(reader.fieldnames):
+            raise ValueError("prices csv must include columns: ticker,date,close")
+
+        date_key = asof.isoformat()
+        prices: dict[str, float] = {}
+        for row in reader:
+            row_date = (row.get("date") or "").strip()
+            if row_date != date_key:
+                continue
+
+            ticker = (row.get("ticker") or "").strip()
+            if not ticker:
+                raise ValueError("prices csv has empty ticker row")
+            if ticker in prices:
+                raise ValueError(f"duplicate ticker for asof date: {ticker}")
+
+            close_raw = (row.get("close") or "").strip()
+            try:
+                close = float(close_raw)
+            except ValueError as exc:
+                raise ValueError(f"invalid close value for ticker={ticker}: {close_raw}") from exc
+            if close <= 0.0:
+                raise ValueError(f"close must be > 0 for ticker={ticker}")
+            prices[ticker] = close
+    return prices
 
 
 def main() -> None:
