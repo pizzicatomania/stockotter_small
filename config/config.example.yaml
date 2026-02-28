@@ -23,9 +23,14 @@
   "scoring": {
     "min_score": 0.0,
     "weights": {
-      "direction": 0.4,
-      "confidence": 0.4,
-      "theme_match": 0.2
+      "confidence_multiplier": 1.8,
+      "direction_positive": 1.0,
+      "direction_negative": -1.0,
+      "horizon_intraday": 0.5,
+      "horizon_1_3d": 0.4,
+      "horizon_long": 0.05,
+      "risk_flag_penalty": -1.2,
+      "severe_risk_flag_penalty": -2.8
     }
   },
   "universe": {

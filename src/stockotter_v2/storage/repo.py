@@ -5,7 +5,7 @@ import sqlite3
 from datetime import date, timedelta
 from pathlib import Path
 
-from stockotter_v2.schemas import Cluster, NewsItem, StructuredEvent, now_in_seoul
+from stockotter_v2.schemas import Candidate, Cluster, NewsItem, StructuredEvent, now_in_seoul
 
 
 class Repository:
@@ -183,6 +183,109 @@ class Repository:
 
         return [self._row_to_structured_event(row) for row in rows]
 
+    def list_representative_structured_events_since_hours(
+        self,
+        *,
+        since_hours: int = 24,
+    ) -> list[tuple[NewsItem, StructuredEvent]]:
+        if since_hours < 1:
+            raise ValueError("since_hours must be >= 1")
+
+        cutoff = (now_in_seoul() - timedelta(hours=since_hours)).isoformat()
+        query = """
+        SELECT
+            n.id AS n_id,
+            n.source AS n_source,
+            n.title AS n_title,
+            n.url AS n_url,
+            n.published_at AS n_published_at,
+            n.raw_text AS n_raw_text,
+            n.tickers_mentioned AS n_tickers_mentioned,
+            n.fetched_at AS n_fetched_at,
+            e.news_id AS e_news_id,
+            e.event_type AS e_event_type,
+            e.direction AS e_direction,
+            e.confidence AS e_confidence,
+            e.horizon AS e_horizon,
+            e.themes AS e_themes,
+            e.entities AS e_entities,
+            e.risk_flags AS e_risk_flags
+        FROM (
+            SELECT DISTINCT representative_news_id
+            FROM clusters
+        ) c
+        INNER JOIN news_items n ON n.id = c.representative_news_id
+        INNER JOIN structured_events e ON e.news_id = n.id
+        WHERE n.published_at >= ?
+        ORDER BY n.published_at DESC, n.id DESC, e.id DESC
+        """
+        with self._connect() as conn:
+            rows = conn.execute(query, (cutoff,)).fetchall()
+
+        events: list[tuple[NewsItem, StructuredEvent]] = []
+        for row in rows:
+            news_item = NewsItem(
+                id=row["n_id"],
+                source=row["n_source"],
+                title=row["n_title"],
+                url=row["n_url"],
+                published_at=row["n_published_at"],
+                raw_text=row["n_raw_text"],
+                tickers_mentioned=json.loads(row["n_tickers_mentioned"]),
+                fetched_at=row["n_fetched_at"],
+            )
+            event = StructuredEvent(
+                news_id=row["e_news_id"],
+                event_type=row["e_event_type"],
+                direction=row["e_direction"],
+                confidence=row["e_confidence"],
+                horizon=row["e_horizon"],
+                themes=json.loads(row["e_themes"]),
+                entities=json.loads(row["e_entities"]),
+                risk_flags=json.loads(row["e_risk_flags"]),
+            )
+            events.append((news_item, event))
+        return events
+
+    def replace_candidates(self, candidates: list[Candidate]) -> None:
+        query = """
+        INSERT INTO candidates (
+            ticker, score, reasons, supporting_news_ids, themes, risk_flags
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+        """
+        payloads = [
+            (
+                candidate.ticker,
+                candidate.score,
+                json.dumps(candidate.reasons, ensure_ascii=False),
+                json.dumps(candidate.supporting_news_ids, ensure_ascii=False),
+                json.dumps(candidate.themes, ensure_ascii=False),
+                json.dumps(candidate.risk_flags, ensure_ascii=False),
+            )
+            for candidate in candidates
+        ]
+        with self._connect() as conn:
+            conn.execute("DELETE FROM candidates")
+            if payloads:
+                conn.executemany(query, payloads)
+
+    def list_candidates(self, limit: int | None = None) -> list[Candidate]:
+        query = """
+        SELECT ticker, score, reasons, supporting_news_ids, themes, risk_flags
+        FROM candidates
+        ORDER BY score DESC, ticker ASC
+        """
+        params: tuple[object, ...] = ()
+        if limit is not None:
+            query += " LIMIT ?"
+            params = (limit,)
+
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+
+        return [self._row_to_candidate(row) for row in rows]
+
     def _init_schema(self) -> None:
         schema_path = Path(__file__).with_name("schema.sql")
         schema = schema_path.read_text(encoding="utf-8")
@@ -228,4 +331,15 @@ class Repository:
             representative_news_id=row["representative_news_id"],
             member_news_ids=json.loads(row["member_news_ids"]),
             summary=row["summary"],
+        )
+
+    @staticmethod
+    def _row_to_candidate(row: sqlite3.Row) -> Candidate:
+        return Candidate(
+            ticker=row["ticker"],
+            score=row["score"],
+            reasons=json.loads(row["reasons"]),
+            supporting_news_ids=json.loads(row["supporting_news_ids"]),
+            themes=json.loads(row["themes"]),
+            risk_flags=json.loads(row["risk_flags"]),
         )
