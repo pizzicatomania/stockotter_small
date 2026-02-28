@@ -38,6 +38,12 @@ Storage debug smoke test:
 PYTHONPATH=src .venv/bin/python -m stockotter_small debug storage
 ```
 
+Fetch Naver Finance news for seed tickers:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m stockotter_small fetch-news --tickers-file data/seed_tickers.txt --hours 24
+```
+
 ## Lint
 
 ```bash
