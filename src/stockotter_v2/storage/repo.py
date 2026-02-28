@@ -5,6 +5,12 @@ import sqlite3
 from datetime import date, timedelta
 from pathlib import Path
 
+from stockotter_v2.paper.positions import (
+    PaperEvent,
+    PaperEventType,
+    PaperPosition,
+    PositionState,
+)
 from stockotter_v2.schemas import Candidate, Cluster, NewsItem, StructuredEvent, now_in_seoul
 
 
@@ -286,6 +292,116 @@ class Repository:
 
         return [self._row_to_candidate(row) for row in rows]
 
+    def get_paper_position(self, ticker: str) -> PaperPosition | None:
+        query = """
+        SELECT
+            ticker, state, entry_price, qty_total, qty_remaining, entry_date,
+            last_close, updated_at, highest_close_since_tp, exit_price, exit_date, sideways_days
+        FROM paper_positions
+        WHERE ticker = ?
+        """
+        with self._connect() as conn:
+            row = conn.execute(query, (ticker,)).fetchone()
+
+        if row is None:
+            return None
+        return self._row_to_paper_position(row)
+
+    def upsert_paper_position(self, position: PaperPosition) -> None:
+        payload = (
+            position.ticker,
+            position.state.value,
+            position.entry_price,
+            position.qty_total,
+            position.qty_remaining,
+            position.entry_date.isoformat(),
+            position.last_close,
+            position.updated_at.isoformat(),
+            position.highest_close_since_tp,
+            position.exit_price,
+            position.exit_date.isoformat() if position.exit_date is not None else None,
+            position.sideways_days,
+        )
+        query = """
+        INSERT INTO paper_positions (
+            ticker, state, entry_price, qty_total, qty_remaining, entry_date,
+            last_close, updated_at, highest_close_since_tp, exit_price, exit_date, sideways_days
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(ticker) DO UPDATE SET
+            state=excluded.state,
+            entry_price=excluded.entry_price,
+            qty_total=excluded.qty_total,
+            qty_remaining=excluded.qty_remaining,
+            entry_date=excluded.entry_date,
+            last_close=excluded.last_close,
+            updated_at=excluded.updated_at,
+            highest_close_since_tp=excluded.highest_close_since_tp,
+            exit_price=excluded.exit_price,
+            exit_date=excluded.exit_date,
+            sideways_days=excluded.sideways_days
+        """
+        with self._connect() as conn:
+            conn.execute(query, payload)
+
+    def list_open_paper_positions(self) -> list[PaperPosition]:
+        query = """
+        SELECT
+            ticker, state, entry_price, qty_total, qty_remaining, entry_date,
+            last_close, updated_at, highest_close_since_tp, exit_price, exit_date, sideways_days
+        FROM paper_positions
+        WHERE state != ?
+        ORDER BY ticker ASC
+        """
+        with self._connect() as conn:
+            rows = conn.execute(query, (PositionState.EXITED.value,)).fetchall()
+
+        return [self._row_to_paper_position(row) for row in rows]
+
+    def insert_paper_event(self, event: PaperEvent) -> None:
+        payload = (
+            event.ticker,
+            event.event_date.isoformat(),
+            event.event_type.value,
+            event.price,
+            event.quantity,
+            event.state_before.value,
+            event.state_after.value,
+            event.note,
+        )
+        query = """
+        INSERT INTO paper_events (
+            ticker, event_date, event_type, price, quantity, state_before, state_after, note
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        with self._connect() as conn:
+            conn.execute(query, payload)
+
+    def list_paper_events(
+        self,
+        *,
+        ticker: str | None = None,
+        limit: int | None = None,
+    ) -> list[PaperEvent]:
+        query = """
+        SELECT ticker, event_date, event_type, price, quantity, state_before, state_after, note
+        FROM paper_events
+        """
+        params: list[object] = []
+        if ticker is not None:
+            query += " WHERE ticker = ?"
+            params.append(ticker)
+        query += " ORDER BY event_date ASC, id ASC"
+        if limit is not None:
+            query += " LIMIT ?"
+            params.append(limit)
+
+        with self._connect() as conn:
+            rows = conn.execute(query, tuple(params)).fetchall()
+
+        return [self._row_to_paper_event(row) for row in rows]
+
     def _init_schema(self) -> None:
         schema_path = Path(__file__).with_name("schema.sql")
         schema = schema_path.read_text(encoding="utf-8")
@@ -342,4 +458,34 @@ class Repository:
             supporting_news_ids=json.loads(row["supporting_news_ids"]),
             themes=json.loads(row["themes"]),
             risk_flags=json.loads(row["risk_flags"]),
+        )
+
+    @staticmethod
+    def _row_to_paper_position(row: sqlite3.Row) -> PaperPosition:
+        return PaperPosition(
+            ticker=row["ticker"],
+            state=PositionState(row["state"]),
+            entry_price=row["entry_price"],
+            qty_total=row["qty_total"],
+            qty_remaining=row["qty_remaining"],
+            entry_date=row["entry_date"],
+            last_close=row["last_close"],
+            updated_at=row["updated_at"],
+            highest_close_since_tp=row["highest_close_since_tp"],
+            exit_price=row["exit_price"],
+            exit_date=row["exit_date"],
+            sideways_days=row["sideways_days"],
+        )
+
+    @staticmethod
+    def _row_to_paper_event(row: sqlite3.Row) -> PaperEvent:
+        return PaperEvent(
+            ticker=row["ticker"],
+            event_date=row["event_date"],
+            event_type=PaperEventType(row["event_type"]),
+            price=row["price"],
+            quantity=row["quantity"],
+            state_before=PositionState(row["state_before"]),
+            state_after=PositionState(row["state_after"]),
+            note=row["note"],
         )
