@@ -57,6 +57,12 @@ Cluster similar news (TF-IDF cosine) and store into `clusters`:
 PYTHONPATH=src .venv/bin/python -m stockotter_small cluster --since-hours 24
 ```
 
+Score clustered representative events and export top candidates:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m stockotter_small score --since-hours 24 --top 10 --json-out data/candidates_top10.json
+```
+
 Filter eligible universe from market snapshot CSV:
 
 ```bash

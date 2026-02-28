@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 
@@ -9,7 +10,8 @@ from stockotter_v2 import load_config
 from stockotter_v2.clusterer import TfidfClusterer
 from stockotter_v2.llm import GeminiClient, LLMStructurer
 from stockotter_v2.news.naver_fetcher import NaverNewsFetcher
-from stockotter_v2.schemas import NewsItem, now_in_seoul
+from stockotter_v2.schemas import Candidate, NewsItem, now_in_seoul
+from stockotter_v2.scoring import RuleBasedScorer, build_score_weights
 from stockotter_v2.storage import FileCache, Repository
 from stockotter_v2.universe import filter_market_snapshot
 
@@ -198,6 +200,64 @@ def cluster_news(
     typer.echo(f"clusters={len(clusters)} news={len(items)}")
 
 
+@app.command("score")
+def score_candidates(
+    since_hours: int = typer.Option(
+        24,
+        "--since-hours",
+        help="Only score representative articles newer than N hours.",
+        min=1,
+    ),
+    top: int = typer.Option(
+        10,
+        "--top",
+        help="Output top N candidates.",
+        min=1,
+    ),
+    db_path: Path = typer.Option(
+        Path("data/storage/stockotter.db"),
+        "--db-path",
+        help="SQLite DB file path.",
+    ),
+    config_path: Path = typer.Option(
+        Path("config/config.example.yaml"),
+        "--config",
+        help="Config file path.",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+    ),
+    json_out: Path | None = typer.Option(
+        None,
+        "--json-out",
+        help="Optional output path for top candidates JSON.",
+    ),
+) -> None:
+    """Score clustered representative events and rank candidates."""
+    config = load_config(config_path)
+    repo = Repository(db_path)
+    scorer = RuleBasedScorer(
+        weights=build_score_weights(config.scoring.weights),
+        min_score=config.scoring.min_score,
+    )
+
+    ranked = scorer.score_since_hours(repo=repo, since_hours=since_hours)
+    repo.replace_candidates(ranked)
+    top_candidates = ranked[:top]
+
+    typer.echo(_render_candidate_table(top_candidates))
+    typer.echo(f"top={len(top_candidates)} total={len(ranked)}")
+
+    if json_out is not None:
+        json_out.parent.mkdir(parents=True, exist_ok=True)
+        payload = [candidate.model_dump(mode="json") for candidate in top_candidates]
+        json_out.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        typer.echo(f"json_out={json_out}")
+
+
 @universe_app.command("filter")
 def universe_filter(
     market_snapshot: Path = typer.Option(
@@ -290,6 +350,43 @@ def debug_storage(
         raise typer.Exit(code=1)
 
     typer.echo("storage ok")
+
+
+def _render_candidate_table(candidates: list[Candidate]) -> str:
+    if not candidates:
+        return "no candidates found"
+
+    headers = ("rank", "ticker", "score", "reason")
+    rows = [
+        (
+            str(index),
+            candidate.ticker,
+            f"{candidate.score:.3f}",
+            _truncate(candidate.reasons[0] if candidate.reasons else "-", limit=90),
+        )
+        for index, candidate in enumerate(candidates, start=1)
+    ]
+
+    widths = [
+        max(len(headers[column]), *(len(row[column]) for row in rows))
+        for column in range(len(headers))
+    ]
+
+    def _line(values: tuple[str, str, str, str]) -> str:
+        return " | ".join(
+            value.ljust(widths[index]) for index, value in enumerate(values)
+        )
+
+    divider = "-+-".join("-" * width for width in widths)
+    body = [_line(headers), divider]
+    body.extend(_line(row) for row in rows)
+    return "\n".join(body)
+
+
+def _truncate(text: str, *, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    return f"{text[: limit - 3]}..."
 
 
 def _load_tickers(path: Path) -> list[str]:
