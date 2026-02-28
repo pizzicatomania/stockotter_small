@@ -5,7 +5,14 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 
 class SourceConfig(BaseModel):
@@ -48,6 +55,16 @@ class UniverseConfig(BaseModel):
     market: str = "KR"
     tickers: list[str] = Field(default_factory=list)
     max_candidates: int = Field(default=20, ge=1)
+    min_price: float = Field(default=1_000.0, ge=0.0)
+    max_price: float = Field(default=100_000.0, ge=0.0)
+    min_value_traded_5d_avg: float = Field(default=10_000_000_000.0, ge=0.0)
+    exclude_managed: bool = True
+
+    @model_validator(mode="after")
+    def validate_price_bounds(self) -> UniverseConfig:
+        if self.max_price < self.min_price:
+            raise ValueError("universe.max_price must be greater than or equal to min_price")
+        return self
 
 
 class AppConfig(BaseModel):

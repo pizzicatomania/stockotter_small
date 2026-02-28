@@ -31,6 +31,10 @@
   "universe": {
     "market": "KR",
     "tickers": ["005930", "000660"],
-    "max_candidates": 20
+    "max_candidates": 20,
+    "min_price": 1000,
+    "max_price": 100000,
+    "min_value_traded_5d_avg": 10000000000,
+    "exclude_managed": true
   }
 }

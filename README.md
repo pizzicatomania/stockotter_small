@@ -57,6 +57,12 @@ Cluster similar news (TF-IDF cosine) and store into `clusters`:
 PYTHONPATH=src .venv/bin/python -m stockotter_small cluster --since-hours 24
 ```
 
+Filter eligible universe from market snapshot CSV:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m stockotter_small universe filter --market-snapshot data/kr_snapshot.csv
+```
+
 ## Lint
 
 ```bash
