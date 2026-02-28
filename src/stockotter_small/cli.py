@@ -11,6 +11,7 @@ from stockotter_v2.llm import GeminiClient, LLMStructurer
 from stockotter_v2.news.naver_fetcher import NaverNewsFetcher
 from stockotter_v2.schemas import NewsItem, now_in_seoul
 from stockotter_v2.storage import FileCache, Repository
+from stockotter_v2.universe import filter_market_snapshot
 
 logging.basicConfig(
     level=logging.INFO,
@@ -19,7 +20,9 @@ logging.basicConfig(
 
 app = typer.Typer(help="StockOtter Small CLI")
 debug_app = typer.Typer(help="Debug commands")
+universe_app = typer.Typer(help="Universe commands")
 app.add_typer(debug_app, name="debug")
+app.add_typer(universe_app, name="universe")
 
 
 @app.command()
@@ -193,6 +196,59 @@ def cluster_news(
         repo.upsert_cluster(cluster)
 
     typer.echo(f"clusters={len(clusters)} news={len(items)}")
+
+
+@universe_app.command("filter")
+def universe_filter(
+    market_snapshot: Path = typer.Option(
+        ...,
+        "--market-snapshot",
+        help="Path to CSV file with ticker, price, value_traded_5d_avg, is_managed.",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+    ),
+    output_path: Path = typer.Option(
+        Path("data/eligible_tickers.txt"),
+        "--output-path",
+        help="Output txt file path for eligible tickers.",
+    ),
+    config_path: Path = typer.Option(
+        Path("config/config.example.yaml"),
+        "--config",
+        help="Config file path.",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+    ),
+) -> None:
+    """Filter tickers from a market snapshot CSV."""
+    config = load_config(config_path)
+    universe_config = config.universe
+    try:
+        result = filter_market_snapshot(
+            market_snapshot,
+            min_price=universe_config.min_price,
+            max_price=universe_config.max_price,
+            min_value_traded_5d_avg=universe_config.min_value_traded_5d_avg,
+            exclude_managed=universe_config.exclude_managed,
+        )
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_body = "\n".join(result.eligible_tickers)
+    if output_body:
+        output_body = f"{output_body}\n"
+    output_path.write_text(output_body, encoding="utf-8")
+
+    for reason, count in sorted(result.excluded_counts.items()):
+        logging.info("universe filter excluded reason=%s count=%d", reason, count)
+
+    typer.echo(
+        f"eligible={len(result.eligible_tickers)} total={result.total_rows} output={output_path}"
+    )
 
 
 @debug_app.command("storage")
