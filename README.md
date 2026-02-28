@@ -51,6 +51,12 @@ export GEMINI_API_KEY=...
 PYTHONPATH=src .venv/bin/python -m stockotter_small llm-structure --since-hours 24
 ```
 
+Cluster similar news (TF-IDF cosine) and store into `clusters`:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m stockotter_small cluster --since-hours 24
+```
+
 ## Lint
 
 ```bash

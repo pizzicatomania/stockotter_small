@@ -5,7 +5,7 @@ import sqlite3
 from datetime import date, timedelta
 from pathlib import Path
 
-from stockotter_v2.schemas import NewsItem, StructuredEvent, now_in_seoul
+from stockotter_v2.schemas import Cluster, NewsItem, StructuredEvent, now_in_seoul
 
 
 class Repository:
@@ -90,6 +90,22 @@ class Repository:
 
         return [self._row_to_news_item(row) for row in rows]
 
+    def list_news_items_since_hours(self, *, since_hours: int = 24) -> list[NewsItem]:
+        if since_hours < 1:
+            raise ValueError("since_hours must be >= 1")
+
+        cutoff = (now_in_seoul() - timedelta(hours=since_hours)).isoformat()
+        query = """
+        SELECT id, source, title, url, published_at, raw_text, tickers_mentioned, fetched_at
+        FROM news_items
+        WHERE published_at >= ?
+        ORDER BY published_at ASC, id ASC
+        """
+        with self._connect() as conn:
+            rows = conn.execute(query, (cutoff,)).fetchall()
+
+        return [self._row_to_news_item(row) for row in rows]
+
     def upsert_structured_event(self, event: StructuredEvent) -> None:
         payload = (
             event.news_id,
@@ -114,6 +130,43 @@ class Repository:
         """
         with self._connect() as conn:
             conn.execute(query, payload)
+
+    def upsert_cluster(self, cluster: Cluster) -> None:
+        payload = (
+            cluster.cluster_id,
+            cluster.representative_news_id,
+            json.dumps(cluster.member_news_ids, ensure_ascii=False),
+            cluster.summary,
+        )
+        query = """
+        INSERT INTO clusters (
+            cluster_id, representative_news_id, member_news_ids, summary
+        )
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(cluster_id) DO UPDATE SET
+            representative_news_id=excluded.representative_news_id,
+            member_news_ids=excluded.member_news_ids,
+            summary=excluded.summary,
+            updated_at=CURRENT_TIMESTAMP
+        """
+        with self._connect() as conn:
+            conn.execute(query, payload)
+
+    def list_clusters(self, limit: int | None = None) -> list[Cluster]:
+        query = """
+        SELECT cluster_id, representative_news_id, member_news_ids, summary
+        FROM clusters
+        ORDER BY cluster_id ASC
+        """
+        params: tuple[object, ...] = ()
+        if limit is not None:
+            query += " LIMIT ?"
+            params = (limit,)
+
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+
+        return [self._row_to_cluster(row) for row in rows]
 
     def list_events_by_date(self, event_date: date | str) -> list[StructuredEvent]:
         date_key = event_date.isoformat() if isinstance(event_date, date) else event_date
@@ -166,4 +219,13 @@ class Repository:
             themes=json.loads(row["themes"]),
             entities=json.loads(row["entities"]),
             risk_flags=json.loads(row["risk_flags"]),
+        )
+
+    @staticmethod
+    def _row_to_cluster(row: sqlite3.Row) -> Cluster:
+        return Cluster(
+            cluster_id=row["cluster_id"],
+            representative_news_id=row["representative_news_id"],
+            member_news_ids=json.loads(row["member_news_ids"]),
+            summary=row["summary"],
         )
