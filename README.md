@@ -63,6 +63,15 @@ Score clustered representative events and export top candidates:
 PYTHONPATH=src .venv/bin/python -m stockotter_small score --since-hours 24 --top 10 --json-out data/candidates_top10.json
 ```
 
+오늘 후보 TOP N을 한 번에 뽑기 (fetch -> structure -> cluster -> score -> report):
+
+```bash
+export GEMINI_API_KEY=...
+PYTHONPATH=src .venv/bin/python -m stockotter_small run --tickers-file data/seed_tickers.txt --since-hours 24 --top 10 --json-out data/reports/candidates_top10.json
+```
+
+위 커맨드는 표 형태로 결과를 stdout에 출력하고, JSON 리포트를 파일로 저장합니다.
+
 Update paper-trading positions from daily close CSV (`ticker,date,close`) in EOD mode:
 
 ```bash
