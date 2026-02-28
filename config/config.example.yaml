@@ -1,0 +1,35 @@
+{
+  "timezone": "Asia/Seoul",
+  "sources": [
+    {
+      "name": "naver_finance",
+      "type": "rss",
+      "enabled": true,
+      "url": "https://example.com/rss"
+    }
+  ],
+  "caching": {
+    "enabled": true,
+    "directory": "data/cache",
+    "ttl_minutes": 60
+  },
+  "llm": {
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "temperature": 0.0,
+    "max_retries": 1
+  },
+  "scoring": {
+    "min_score": 0.0,
+    "weights": {
+      "direction": 0.4,
+      "confidence": 0.4,
+      "theme_match": 0.2
+    }
+  },
+  "universe": {
+    "market": "KR",
+    "tickers": ["005930", "000660"],
+    "max_candidates": 20
+  }
+}

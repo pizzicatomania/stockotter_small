@@ -1,0 +1,8 @@
+{
+  "ticker": "005930",
+  "score": 0.82,
+  "reasons": ["수요 회복 시그널", "실적 가이던스 상향"],
+  "supporting_news_ids": ["news-001"],
+  "themes": ["semiconductor", "export"],
+  "risk_flags": ["macro_volatility"]
+}
