@@ -6,6 +6,7 @@ from pathlib import Path
 import typer
 
 from stockotter_v2 import load_config
+from stockotter_v2.clusterer import TfidfClusterer
 from stockotter_v2.llm import GeminiClient, LLMStructurer
 from stockotter_v2.news.naver_fetcher import NaverNewsFetcher
 from stockotter_v2.schemas import NewsItem, now_in_seoul
@@ -147,6 +148,51 @@ def llm_structure(
     typer.echo(
         f"processed={stats.processed} failed={stats.failed} skipped={stats.skipped}"
     )
+
+
+@app.command("cluster")
+def cluster_news(
+    since_hours: int = typer.Option(
+        24,
+        "--since-hours",
+        help="Only cluster articles newer than N hours.",
+        min=1,
+    ),
+    db_path: Path = typer.Option(
+        Path("data/storage/stockotter.db"),
+        "--db-path",
+        help="SQLite DB file path.",
+    ),
+    similarity_threshold: float = typer.Option(
+        0.35,
+        "--similarity-threshold",
+        help="Cosine similarity threshold for TF-IDF clustering.",
+        min=0.0,
+        max=1.0,
+    ),
+    representative_policy: str = typer.Option(
+        "earliest",
+        "--representative-policy",
+        help="Representative policy: earliest or keyword.",
+    ),
+) -> None:
+    """Cluster similar news and store cluster rows."""
+    repo = Repository(db_path)
+    try:
+        clusterer = TfidfClusterer(
+            similarity_threshold=similarity_threshold,
+            representative_policy=representative_policy,
+        )
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    items = repo.list_news_items_since_hours(since_hours=since_hours)
+    clusters = clusterer.cluster(items)
+    for cluster in clusters:
+        repo.upsert_cluster(cluster)
+
+    typer.echo(f"clusters={len(clusters)} news={len(items)}")
 
 
 @debug_app.command("storage")
