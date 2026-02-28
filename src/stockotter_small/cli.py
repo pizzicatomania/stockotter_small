@@ -13,6 +13,11 @@ from stockotter_v2.clusterer import TfidfClusterer
 from stockotter_v2.llm import GeminiClient, LLMStructurer
 from stockotter_v2.news.naver_fetcher import NaverNewsFetcher
 from stockotter_v2.paper import apply_eod_rules, create_entry_position
+from stockotter_v2.pipeline import (
+    render_report_table,
+    render_stage_table,
+    run_pipeline,
+)
 from stockotter_v2.schemas import Candidate, NewsItem, now_in_seoul
 from stockotter_v2.scoring import RuleBasedScorer, build_score_weights
 from stockotter_v2.storage import FileCache, Repository
@@ -261,6 +266,145 @@ def score_candidates(
             encoding="utf-8",
         )
         typer.echo(f"json_out={json_out}")
+
+
+@app.command("run")
+def run_one_command_pipeline(
+    tickers_file: Path = typer.Option(
+        ...,
+        "--tickers-file",
+        help="Path to text file with seed tickers (one per line).",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+    ),
+    since_hours: int = typer.Option(
+        24,
+        "--since-hours",
+        help="Only process data newer than N hours.",
+        min=1,
+    ),
+    top: int = typer.Option(
+        10,
+        "--top",
+        help="Output top N candidates.",
+        min=1,
+    ),
+    db_path: Path = typer.Option(
+        Path("data/storage/stockotter.db"),
+        "--db-path",
+        help="SQLite DB file path.",
+    ),
+    cache_dir: Path = typer.Option(
+        Path("data/cache/raw"),
+        "--cache-dir",
+        help="File cache directory for fetched HTML.",
+    ),
+    sleep_seconds: float = typer.Option(
+        0.6,
+        "--sleep-seconds",
+        min=0.0,
+        help="Sleep interval between uncached HTTP requests.",
+    ),
+    config_path: Path = typer.Option(
+        Path("config/config.example.yaml"),
+        "--config",
+        help="Config file path.",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+    ),
+    api_key_env: str = typer.Option(
+        "GEMINI_API_KEY",
+        "--api-key-env",
+        help="Environment variable name for Gemini API key.",
+    ),
+    similarity_threshold: float = typer.Option(
+        0.35,
+        "--similarity-threshold",
+        help="Cosine similarity threshold for TF-IDF clustering.",
+        min=0.0,
+        max=1.0,
+    ),
+    representative_policy: str = typer.Option(
+        "earliest",
+        "--representative-policy",
+        help="Representative policy: earliest or keyword.",
+    ),
+    json_out: Path = typer.Option(
+        Path("data/reports/candidates_top.json"),
+        "--json-out",
+        help="Output JSON report path.",
+    ),
+) -> None:
+    """Run fetch->structure->cluster->score and output top candidates."""
+    tickers = _load_tickers(tickers_file)
+    if not tickers:
+        typer.echo("no valid tickers found in file", err=True)
+        raise typer.Exit(code=1)
+
+    config = load_config(config_path)
+    repo = Repository(db_path)
+    cache = FileCache(cache_dir)
+    fetcher = NaverNewsFetcher(cache=cache, sleep_seconds=sleep_seconds)
+
+    if config.llm.provider.lower() != "gemini":
+        logging.warning(
+            "llm.provider=%s, but run command currently uses Gemini client.",
+            config.llm.provider,
+        )
+
+    try:
+        client = GeminiClient.from_env(
+            model=config.llm.model,
+            temperature=config.llm.temperature,
+            env_var=api_key_env,
+        )
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    structurer = LLMStructurer(
+        repo=repo,
+        client=client,
+        prompt_template=config.llm.prompt_template,
+        max_retries=config.llm.max_retries,
+    )
+    try:
+        clusterer = TfidfClusterer(
+            similarity_threshold=similarity_threshold,
+            representative_policy=representative_policy,
+        )
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    scorer = RuleBasedScorer(
+        weights=build_score_weights(config.scoring.weights),
+        min_score=config.scoring.min_score,
+    )
+
+    result = run_pipeline(
+        tickers=tickers,
+        since_hours=since_hours,
+        top=top,
+        json_out=json_out,
+        repo=repo,
+        fetcher=fetcher,
+        structurer=structurer,
+        clusterer=clusterer,
+        scorer=scorer,
+    )
+
+    typer.echo(render_report_table(result.report_rows))
+    typer.echo(render_stage_table(result.stages))
+    typer.echo(
+        "summary "
+        f"duration={result.duration_seconds:.3f}s "
+        f"errors={result.error_count} "
+        f"top={len(result.report_rows)}"
+    )
+    typer.echo(f"json_out={result.json_out}")
 
 
 @paper_app.command("step")
