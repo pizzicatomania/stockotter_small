@@ -67,4 +67,4 @@ def test_config_example_load_and_validate() -> None:
     assert isinstance(config, AppConfig)
     assert config.timezone == "Asia/Seoul"
     assert len(config.sources) > 0
-    assert config.llm.provider == "openai"
+    assert config.llm.provider == "gemini"
