@@ -1,0 +1,9 @@
+{
+  "id": "news-001",
+  "source": "naver_finance",
+  "title": "반도체 수요 회복 전망",
+  "url": "https://example.com/news/1",
+  "published_at": "2026-02-27T09:30:00",
+  "raw_text": "반도체 업황 회복 기대감이 커지고 있다.",
+  "tickers_mentioned": ["005930", "000660"]
+}
