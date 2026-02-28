@@ -14,10 +14,11 @@
     "ttl_minutes": 60
   },
   "llm": {
-    "provider": "openai",
-    "model": "gpt-4o-mini",
+    "provider": "gemini",
+    "model": "gemini-2.0-flash-lite",
     "temperature": 0.0,
-    "max_retries": 1
+    "max_retries": 1,
+    "prompt_template": null
   },
   "scoring": {
     "min_score": 0.0,

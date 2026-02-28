@@ -22,6 +22,7 @@ dev = [
 ]
 
 [project.scripts]
+stockotter = "stockotter_small.cli:main"
 stockotter-small = "stockotter_small.cli:main"
 
 [tool.setuptools]

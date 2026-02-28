@@ -44,6 +44,13 @@ Fetch Naver Finance news for seed tickers:
 PYTHONPATH=src .venv/bin/python -m stockotter_small fetch-news --tickers-file data/seed_tickers.txt --hours 24
 ```
 
+Structure unprocessed news into `structured_events` via Gemini:
+
+```bash
+export GEMINI_API_KEY=...
+PYTHONPATH=src .venv/bin/python -m stockotter_small llm-structure --since-hours 24
+```
+
 ## Lint
 
 ```bash

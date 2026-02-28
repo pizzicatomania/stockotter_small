@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
-from stockotter_v2.schemas import NewsItem, StructuredEvent
+from stockotter_v2.schemas import NewsItem, StructuredEvent, now_in_seoul
 
 
 class Repository:
@@ -70,6 +70,25 @@ class Repository:
         if row is None:
             return None
         return self._row_to_news_item(row)
+
+    def list_news_items_without_event(self, *, since_hours: int = 24) -> list[NewsItem]:
+        if since_hours < 1:
+            raise ValueError("since_hours must be >= 1")
+
+        cutoff = (now_in_seoul() - timedelta(hours=since_hours)).isoformat()
+        query = """
+        SELECT n.id, n.source, n.title, n.url, n.published_at, n.raw_text,
+               n.tickers_mentioned, n.fetched_at
+        FROM news_items n
+        LEFT JOIN structured_events e ON e.news_id = n.id
+        WHERE e.news_id IS NULL
+          AND n.published_at >= ?
+        ORDER BY n.published_at DESC, n.id DESC
+        """
+        with self._connect() as conn:
+            rows = conn.execute(query, (cutoff,)).fetchall()
+
+        return [self._row_to_news_item(row) for row in rows]
 
     def upsert_structured_event(self, event: StructuredEvent) -> None:
         payload = (

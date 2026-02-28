@@ -5,6 +5,8 @@ from pathlib import Path
 
 import typer
 
+from stockotter_v2 import load_config
+from stockotter_v2.llm import GeminiClient, LLMStructurer
 from stockotter_v2.news.naver_fetcher import NaverNewsFetcher
 from stockotter_v2.schemas import NewsItem, now_in_seoul
 from stockotter_v2.storage import FileCache, Repository
@@ -85,6 +87,65 @@ def fetch_news(
         "stored "
         f"{stored} items "
         f"(fetched={len(items)}, summary_only={summary_only_count}, tickers={len(tickers)})"
+    )
+
+
+@app.command("llm-structure")
+def llm_structure(
+    since_hours: int = typer.Option(
+        24,
+        "--since-hours",
+        help="Only structure articles newer than N hours.",
+        min=1,
+    ),
+    db_path: Path = typer.Option(
+        Path("data/storage/stockotter.db"),
+        "--db-path",
+        help="SQLite DB file path.",
+    ),
+    config_path: Path = typer.Option(
+        Path("config/config.example.yaml"),
+        "--config",
+        help="Config file path.",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+    ),
+    api_key_env: str = typer.Option(
+        "GEMINI_API_KEY",
+        "--api-key-env",
+        help="Environment variable name for Gemini API key.",
+    ),
+) -> None:
+    """Structure news_items into StructuredEvent rows via Gemini JSON output."""
+    config = load_config(config_path)
+    repo = Repository(db_path)
+
+    if config.llm.provider.lower() != "gemini":
+        logging.warning(
+            "llm.provider=%s, but llm-structure command currently uses Gemini client.",
+            config.llm.provider,
+        )
+
+    try:
+        client = GeminiClient.from_env(
+            model=config.llm.model,
+            temperature=config.llm.temperature,
+            env_var=api_key_env,
+        )
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    structurer = LLMStructurer(
+        repo=repo,
+        client=client,
+        prompt_template=config.llm.prompt_template,
+        max_retries=config.llm.max_retries,
+    )
+    stats = structurer.run_since_hours(since_hours)
+    typer.echo(
+        f"processed={stats.processed} failed={stats.failed} skipped={stats.skipped}"
     )
 
 
