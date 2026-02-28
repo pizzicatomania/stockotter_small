@@ -32,6 +32,12 @@ or directly:
 PYTHONPATH=src .venv/bin/python -m stockotter_small --help
 ```
 
+Storage debug smoke test:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m stockotter_small debug storage
+```
+
 ## Lint
 
 ```bash
