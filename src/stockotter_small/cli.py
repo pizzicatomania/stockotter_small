@@ -204,6 +204,16 @@ def llm_eval(
         "--mode",
         help="Evaluation mode: recorded or mock.",
     ),
+    recorded_field: str = typer.Option(
+        "recorded_output",
+        "--recorded-field",
+        help="Field name for recorded predictions (e.g. recorded_output, baseline_output).",
+    ),
+    compare_baseline: bool = typer.Option(
+        False,
+        "--compare-baseline",
+        help="Run baseline comparison using baseline_output field.",
+    ),
 ) -> None:
     """Run StructuredEvent extraction evaluation harness."""
     normalized_mode = mode.strip().lower()
@@ -220,7 +230,43 @@ def llm_eval(
     report_payload = evaluate_samples(
         samples,
         mode=normalized_mode,  # type: ignore[arg-type]
+        recorded_field=recorded_field,
     )
+
+    if compare_baseline and normalized_mode == "recorded":
+        baseline_payload = evaluate_samples(
+            samples,
+            mode="recorded",
+            recorded_field="baseline_output",
+        )
+        metrics = report_payload["metrics"]
+        baseline_metrics = baseline_payload["metrics"]
+        report_payload["baseline"] = {
+            "recorded_field": "baseline_output",
+            "metrics": baseline_metrics,
+            "delta": {
+                "event_type_accuracy": round(
+                    metrics["event_type_accuracy"] - baseline_metrics["event_type_accuracy"],
+                    6,
+                ),
+                "direction_accuracy": round(
+                    metrics["direction_accuracy"] - baseline_metrics["direction_accuracy"],
+                    6,
+                ),
+                "horizon_accuracy": round(
+                    metrics["horizon_accuracy"] - baseline_metrics["horizon_accuracy"],
+                    6,
+                ),
+                "risk_flags_precision": round(
+                    metrics["risk_flags_precision"] - baseline_metrics["risk_flags_precision"],
+                    6,
+                ),
+                "risk_flags_recall": round(
+                    metrics["risk_flags_recall"] - baseline_metrics["risk_flags_recall"],
+                    6,
+                ),
+            },
+        }
 
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(

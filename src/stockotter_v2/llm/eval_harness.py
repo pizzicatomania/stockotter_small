@@ -30,6 +30,7 @@ class EvalSample(BaseModel):
     raw_text: str = ""
     expected: EvalExpected
     recorded_output: dict[str, Any] | str | None = None
+    baseline_output: dict[str, Any] | str | None = None
     mock_output: dict[str, Any] | str | None = None
 
 
@@ -73,6 +74,7 @@ def evaluate_samples(
     samples: list[EvalSample],
     *,
     mode: Literal["recorded", "mock"] = "recorded",
+    recorded_field: str = "recorded_output",
 ) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     evaluated = 0
@@ -92,7 +94,11 @@ def evaluate_samples(
         }
 
         try:
-            predicted = _predict_sample(sample=sample, mode=mode)
+            predicted = _predict_sample(
+                sample=sample,
+                mode=mode,
+                recorded_field=recorded_field,
+            )
             row["predicted"] = predicted.model_dump(mode="json")
             evaluated += 1
         except Exception as exc:
@@ -156,6 +162,7 @@ def evaluate_samples(
 
     return {
         "mode": mode,
+        "recorded_field": recorded_field if mode == "recorded" else None,
         "metrics": {
             "sample_count": metrics.sample_count,
             "evaluated_count": metrics.evaluated_count,
@@ -206,11 +213,13 @@ def _predict_sample(
     *,
     sample: EvalSample,
     mode: Literal["recorded", "mock"],
+    recorded_field: str,
 ) -> EvalPrediction:
     if mode == "recorded":
-        if sample.recorded_output is None:
-            raise ValueError("recorded_output is missing")
-        return _parse_prediction_payload(sample.recorded_output)
+        payload = getattr(sample, recorded_field, None)
+        if payload is None:
+            raise ValueError(f"{recorded_field} is missing")
+        return _parse_prediction_payload(payload)
     if mode == "mock":
         if sample.mock_output is not None:
             return _parse_prediction_payload(sample.mock_output)

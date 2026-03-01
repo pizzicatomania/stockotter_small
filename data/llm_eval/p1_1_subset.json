@@ -1,0 +1,74 @@
+[
+  {
+    "news_id": "p1-1-0001",
+    "title": "삼성전자, 분기 가이던스 상향",
+    "snippet": "메모리 수요 회복 반영",
+    "raw_text": "삼성전자는 분기 가이던스를 상향 조정했다.",
+    "expected": {"event_type": "earnings_guidance", "direction": "positive", "horizon": "short_term", "risk_flags": []},
+    "baseline_output": {"event_type": "demand", "direction": "positive", "horizon": "short_term", "risk_flags": []},
+    "recorded_output": {"event_type": "earnings_guidance", "direction": "positive", "horizon": "short_term", "risk_flags": []}
+  },
+  {
+    "news_id": "p1-1-0002",
+    "title": "SK하이닉스, AI 서버용 메모리 공급 계약 수주",
+    "snippet": "대형 클라우드 고객과 장기 계약",
+    "raw_text": "SK하이닉스는 AI 서버용 메모리 공급 계약을 체결했다.",
+    "expected": {"event_type": "contract_win", "direction": "positive", "horizon": "mid_term", "risk_flags": []},
+    "baseline_output": {"event_type": "supply_chain", "direction": "positive", "horizon": "short_term", "risk_flags": []},
+    "recorded_output": {"event_type": "contract_win", "direction": "positive", "horizon": "mid_term", "risk_flags": []}
+  },
+  {
+    "news_id": "p1-1-0003",
+    "title": "NAVER, 감독당국 조사 착수",
+    "snippet": "서비스 운영 관련 조사",
+    "raw_text": "감독당국이 NAVER 서비스 운영에 대해 조사에 착수했다.",
+    "expected": {"event_type": "investigation", "direction": "negative", "horizon": "short_term", "risk_flags": ["regulatory_risk"]},
+    "baseline_output": {"event_type": "UNKNOWN", "direction": "neutral", "horizon": "short_term", "risk_flags": []},
+    "recorded_output": {"event_type": "investigation", "direction": "negative", "horizon": "short_term", "risk_flags": ["regulatory_risk"]}
+  },
+  {
+    "news_id": "p1-1-0004",
+    "title": "카카오, 소송 이슈 부각",
+    "snippet": "장기 불확실성 확대",
+    "raw_text": "카카오는 소송 이슈로 장기 리스크가 부각됐다.",
+    "expected": {"event_type": "litigation", "direction": "negative", "horizon": "long_term", "risk_flags": ["litigation_risk"]},
+    "baseline_output": {"event_type": "investigation", "direction": "negative", "horizon": "short_term", "risk_flags": ["litigation_risk"]},
+    "recorded_output": {"event_type": "litigation", "direction": "negative", "horizon": "long_term", "risk_flags": ["litigation_risk"]}
+  },
+  {
+    "news_id": "p1-1-0005",
+    "title": "현대차, 공급망 점검 계획 발표",
+    "snippet": "원자재 가격 불확실성 반영",
+    "raw_text": "현대차는 공급망 점검 계획을 발표했다.",
+    "expected": {"event_type": "supply_chain", "direction": "neutral", "horizon": "mid_term", "risk_flags": ["macro_uncertainty"]},
+    "baseline_output": {"event_type": "demand", "direction": "neutral", "horizon": "short_term", "risk_flags": []},
+    "recorded_output": {"event_type": "supply_chain", "direction": "neutral", "horizon": "mid_term", "risk_flags": ["macro_uncertainty"]}
+  },
+  {
+    "news_id": "p1-1-0006",
+    "title": "삼성전자, 수급 엇갈리며 변동성 확대",
+    "snippet": "외국인 매도·기관 매수",
+    "raw_text": "삼성전자는 수급이 엇갈리며 변동성이 확대됐다.",
+    "expected": {"event_type": "demand", "direction": "mixed", "horizon": "short_term", "risk_flags": ["investor_sentiment_divergence"]},
+    "baseline_output": {"event_type": "demand", "direction": "neutral", "horizon": "short_term", "risk_flags": []},
+    "recorded_output": {"event_type": "demand", "direction": "mixed", "horizon": "short_term", "risk_flags": ["investor_sentiment_divergence"]}
+  },
+  {
+    "news_id": "p1-1-0007",
+    "title": "SK하이닉스, 분류 애매한 단순 시황 기사",
+    "snippet": "뚜렷한 이벤트 없음",
+    "raw_text": "특정 이벤트 없이 시황만 다룬 기사다.",
+    "expected": {"event_type": "UNKNOWN", "direction": "neutral", "horizon": "short_term", "risk_flags": []},
+    "baseline_output": {"event_type": "demand", "direction": "neutral", "horizon": "short_term", "risk_flags": []},
+    "recorded_output": {"event_type": "UNKNOWN", "direction": "neutral", "horizon": "short_term", "risk_flags": []}
+  },
+  {
+    "news_id": "p1-1-0008",
+    "title": "NAVER, 인허가 승인 획득",
+    "snippet": "신규 서비스 승인",
+    "raw_text": "NAVER는 신규 서비스 인허가 승인을 받았다.",
+    "expected": {"event_type": "regulatory_approval", "direction": "positive", "horizon": "mid_term", "risk_flags": []},
+    "baseline_output": {"event_type": "contract_win", "direction": "positive", "horizon": "short_term", "risk_flags": []},
+    "recorded_output": {"event_type": "regulatory_approval", "direction": "positive", "horizon": "mid_term", "risk_flags": []}
+  }
+]

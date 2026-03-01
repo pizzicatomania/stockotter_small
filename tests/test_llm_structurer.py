@@ -124,6 +124,39 @@ def test_invalid_json_repair_retry_succeeds(tmp_path) -> None:
     assert events[0].event_type == "supply_chain"
 
 
+def test_llm_structurer_ignores_hallucinated_ticker_fields(tmp_path) -> None:
+    repo = Repository(tmp_path / "storage.db")
+    item = _build_news_item(news_id="news-no-ticker-hallucination")
+    repo.upsert_news_item(item)
+
+    client = QueueClient(
+        [
+            json.dumps(
+                {
+                    "event_type": "demand",
+                    "direction": "neutral",
+                    "confidence": 0.55,
+                    "horizon": "short_term",
+                    "themes": ["market"],
+                    "entities": ["Samsung Electronics"],
+                    "risk_flags": [],
+                    "ticker": "123456",
+                    "tickers_mentioned": ["654321"],
+                }
+            )
+        ]
+    )
+    structurer = LLMStructurer(repo=repo, client=client, max_retries=1)
+
+    stats = structurer.run_since_hours(24)
+
+    assert stats.processed == 1
+    assert stats.failed == 0
+    events = repo.list_events_by_date(item.published_at.date().isoformat())
+    assert len(events) == 1
+    assert events[0].news_id == item.id
+
+
 def test_cli_llm_structure_prints_counts(monkeypatch, tmp_path) -> None:
     repo = Repository(tmp_path / "storage.db")
     repo.upsert_news_item(_build_news_item(news_id="cli-001", raw_text="첫 번째 기사"))

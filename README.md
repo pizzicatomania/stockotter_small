@@ -57,6 +57,9 @@ PYTHONPATH=src .venv/bin/python -m stockotter_small llm-structure --since-hours 
 기본 모델은 `gemini-2.5-flash`이며, 쿼터/사용량 초과(`RESOURCE_EXHAUSTED`, 429/403) 오류가 발생하면
 자동으로 `gemini-2.5-flash-lite`로 fallback 됩니다.
 
+StructuredEvent 스키마는 enum 제약을 사용하며, 후처리에서 동의어를 canonical 값으로 정규화합니다.
+분류 불확실 시 `event_type=\"UNKNOWN\"` + low confidence 전략을 사용합니다.
+
 Cluster similar news (TF-IDF cosine) and store into `clusters`:
 
 ```bash
@@ -69,6 +72,17 @@ StructuredEvent 추출 품질 평가(오프라인, recorded output 사용):
 PYTHONPATH=src .venv/bin/python -m stockotter_small llm-eval \
   --dataset 'data/llm_eval/*.json' \
   --report out/llm_eval.json \
+  --mode recorded
+```
+
+기존 프롬프트 baseline(`baseline_output`) 대비 개선 프롬프트(`recorded_output`) 비교:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m stockotter_small llm-eval \
+  --dataset 'data/llm_eval/p1_1_subset.json' \
+  --recorded-field recorded_output \
+  --compare-baseline \
+  --report out/llm_eval_compare.json \
   --mode recorded
 ```
 

@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from stockotter_v2.schemas import NewsItem, StructuredEvent
 from stockotter_v2.storage import Repository
 
+from .postprocess import normalize_structured_event_payload
 from .prompts import build_repair_prompt, build_structured_event_prompt
 
 logger = logging.getLogger(__name__)
@@ -99,6 +100,7 @@ class LLMStructurer:
 
 def _validate_structured_event_json(*, news_id: str, response_text: str) -> StructuredEvent:
     payload = _load_json_object(response_text)
+    payload = normalize_structured_event_payload(payload)
     payload["news_id"] = news_id
     try:
         return StructuredEvent.model_validate(payload)
