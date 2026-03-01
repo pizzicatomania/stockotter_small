@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from time import perf_counter
 
+from stockotter_small.news.google_utils import dedupe_exact_by_normalized_title
 from stockotter_v2.clusterer import TfidfClusterer
 from stockotter_v2.llm import LLMStructurer
 from stockotter_v2.news.naver_fetcher import NaverNewsFetcher
@@ -312,7 +313,33 @@ def _run_cluster_stage(
             note=f"already clustered structured_news={len(structured_news_ids)}",
         )
 
-    clusters = clusterer.cluster(recent_items)
+    deduped_items, dedupe_dropped = dedupe_exact_by_normalized_title(
+        recent_items,
+        get_title=lambda item: item.title,
+    )
+    if not deduped_items:
+        return PipelineStageSummary(
+            name="cluster",
+            status=_STATUS_SKIPPED,
+            processed=0,
+            errors=0,
+            duration_seconds=perf_counter() - stage_started,
+            note=f"all news dropped by exact dedupe input={len(recent_items)}",
+        )
+
+    logger.info(
+        "cluster_input_stats news=%d exact_dedupe_dropped=%d passed_to_cluster=%d",
+        len(recent_items),
+        dedupe_dropped,
+        len(deduped_items),
+        extra={
+            "news": len(recent_items),
+            "exact_dedupe_dropped": dedupe_dropped,
+            "passed_to_cluster": len(deduped_items),
+        },
+    )
+
+    clusters = clusterer.cluster(deduped_items)
     errors = 0
     stored = 0
     for cluster in clusters:
@@ -329,7 +356,12 @@ def _run_cluster_stage(
         processed=stored,
         errors=errors,
         duration_seconds=perf_counter() - stage_started,
-        note=f"news={len(recent_items)} clusters={len(clusters)}",
+        note=(
+            f"news={len(recent_items)} "
+            f"dedupe_dropped={dedupe_dropped} "
+            f"clustered_news={len(deduped_items)} "
+            f"clusters={len(clusters)}"
+        ),
     )
 
 

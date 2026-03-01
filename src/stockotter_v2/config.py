@@ -66,6 +66,33 @@ class LLMConfig(BaseModel):
         return normalized
 
 
+class NewsQualityConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+    ticker_map_path: str = "data/ticker_map.json"
+    noise_patterns: list[str] = Field(
+        default_factory=lambda: [
+            "광고",
+            "협찬",
+            "리포트 전문",
+            "주가전망",
+            "전문가 추천",
+            "오늘의 추천주",
+        ]
+    )
+    min_title_length: int = Field(default=10, ge=1)
+    drop_duplicate_titles: bool = True
+
+    @field_validator("ticker_map_path")
+    @classmethod
+    def validate_ticker_map_path(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("news_quality.ticker_map_path must not be empty")
+        return normalized
+
+
 class ScoringConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -98,6 +125,7 @@ class AppConfig(BaseModel):
     sources: list[SourceConfig]
     caching: CachingConfig
     llm: LLMConfig
+    news_quality: NewsQualityConfig = Field(default_factory=NewsQualityConfig)
     scoring: ScoringConfig
     universe: UniverseConfig
 

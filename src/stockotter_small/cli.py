@@ -92,12 +92,18 @@ def fetch_news(
         raise typer.Exit(code=1)
 
     config = load_config(config_path)
+    quality = config.news_quality
     repo = Repository(db_path)
     cache = FileCache(cache_dir)
     fetcher = NaverNewsFetcher(
         cache=cache,
         sleep_seconds=sleep_seconds,
         sources=config.sources,
+        ticker_map_path=quality.ticker_map_path,
+        noise_patterns=quality.noise_patterns,
+        noise_min_title_length=quality.min_title_length,
+        enable_noise_filter=quality.enabled,
+        drop_duplicate_titles=quality.drop_duplicate_titles,
     )
     items = fetcher.fetch_recent_for_tickers(tickers, hours=hours)
 
@@ -360,12 +366,18 @@ def run_one_command_pipeline(
         raise typer.Exit(code=1)
 
     config = load_config(config_path)
+    quality = config.news_quality
     repo = Repository(db_path)
     cache = FileCache(cache_dir)
     fetcher = NaverNewsFetcher(
         cache=cache,
         sleep_seconds=sleep_seconds,
         sources=config.sources,
+        ticker_map_path=quality.ticker_map_path,
+        noise_patterns=quality.noise_patterns,
+        noise_min_title_length=quality.min_title_length,
+        enable_noise_filter=quality.enabled,
+        drop_duplicate_titles=quality.drop_duplicate_titles,
     )
 
     if config.llm.provider.lower() != "gemini":

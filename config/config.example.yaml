@@ -11,7 +11,7 @@
       "name": "google_news_ticker",
       "type": "rss",
       "enabled": true,
-      "url": "https://news.google.com/rss/search?q=%22{ticker}%22+%EC%A3%BC%EC%8B%9D&hl=ko&gl=KR&ceid=KR:ko"
+      "url": "https://news.google.com/rss/search?q=%22{stock_name_urlencoded}%22+%EC%A3%BC%EC%8B%9D&hl=ko&gl=KR&ceid=KR:ko"
     }
   ],
   "caching": {
@@ -27,6 +27,20 @@
     "temperature": 0.0,
     "max_retries": 1,
     "prompt_template": null
+  },
+  "news_quality": {
+    "enabled": true,
+    "ticker_map_path": "data/ticker_map.json",
+    "noise_patterns": [
+      "광고",
+      "협찬",
+      "리포트 전문",
+      "주가전망",
+      "전문가 추천",
+      "오늘의 추천주"
+    ],
+    "min_title_length": 10,
+    "drop_duplicate_titles": true
   },
   "scoring": {
     "min_score": 0.0,
