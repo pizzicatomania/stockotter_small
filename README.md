@@ -12,8 +12,11 @@ Minimal bootstrap for `stockotter_small` using `pip`, `pyproject.toml` (PEP 621)
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
+cp .env.example .env
 make install
 ```
+
+`make` 타겟(`install`, `lint`, `test`, `run`, `e2e`)은 실행 시 `.env`를 자동으로 로드합니다.
 
 This installs runtime and development dependencies from:
 
@@ -75,11 +78,27 @@ PYTHONPATH=src .venv/bin/python -m stockotter_small run --tickers-file data/seed
 
 위 커맨드는 표 형태로 결과를 stdout에 출력하고, JSON 리포트를 파일로 저장합니다.
 
+캐시/DB/기존 리포트를 지우고 E2E를 새로 실행하려면:
+
+```bash
+export GEMINI_API_KEY=...
+make e2e
+```
+
 ## Config Notes
 
 - `config/config.example.yaml`의 `sources`는 RSS 소스 리스트입니다.
 - RSS `url`에 `{ticker}` 템플릿이 있으면 seed ticker별로 URL을 확장해서 수집합니다.
+- RSS `url`에 `{stock_name}` 또는 `{stock_name_urlencoded}`를 쓰면
+  `data/ticker_map.json`의 종목명 기준으로 소스를 확장합니다.
 - Gemini API key 환경변수 이름은 `llm.api_key_env`로 설정합니다(기본값 `GEMINI_API_KEY`).
+
+## Google RSS 품질 안정화
+
+- Google RSS 링크(`news.google.com/rss/articles/...`)는 canonical URL 정규화 후 저장합니다.
+- `data/ticker_map.json`의 종목명 사전으로 제목/요약 기반 ticker 매핑을 수행합니다.
+- 노이즈 타이틀(광고/협찬/추천주/짧은 제목/중복 제목 해시)은 LLM 처리 전 단계에서 제외합니다.
+- 클러스터링 직전 제목 정규화 기반 exact dedupe를 한 번 더 수행해 중복 기사 영향을 줄입니다.
 
 Update paper-trading positions from daily close CSV (`ticker,date,close`) in EOD mode:
 

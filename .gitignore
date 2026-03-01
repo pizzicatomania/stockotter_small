@@ -9,6 +9,7 @@ __pycache__/
 config/config.yaml
 .env
 .env.*
+!.env.example
 
 # Runtime outputs
 .codex_logs/
