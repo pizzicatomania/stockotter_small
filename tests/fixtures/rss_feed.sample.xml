@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>테스트 RSS</title>
+    <item>
+      <title>삼성전자(005930) 관련 기사</title>
+      <link>https://example.com/news/005930-1</link>
+      <pubDate>Fri, 28 Feb 2026 01:15:00 GMT</pubDate>
+      <description>삼성전자 주가 관련 요약</description>
+      <source>테스트언론</source>
+    </item>
+    <item>
+      <title>SK하이닉스(000660) 관련 기사</title>
+      <guid isPermaLink="true">https://example.com/news/000660-1</guid>
+      <pubDate>Fri, 28 Feb 2026 02:20:00 GMT</pubDate>
+      <description>SK하이닉스 수급 관련 요약</description>
+    </item>
+  </channel>
+</rss>

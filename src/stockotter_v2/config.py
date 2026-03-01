@@ -23,6 +23,12 @@ class SourceConfig(BaseModel):
     enabled: bool = True
     url: str | None = None
 
+    @model_validator(mode="after")
+    def validate_required_fields(self) -> SourceConfig:
+        if self.enabled and self.type.lower() == "rss" and not (self.url or "").strip():
+            raise ValueError("sources[].url is required when type is rss and enabled is true")
+        return self
+
 
 class CachingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -36,10 +42,28 @@ class LLMConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     provider: str
-    model: str
+    model: str = "gemini-2.5-flash"
+    fallback_model: str = "gemini-2.5-flash-lite"
+    api_key_env: str = "GEMINI_API_KEY"
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     max_retries: int = Field(default=1, ge=0)
     prompt_template: str | None = None
+
+    @field_validator("api_key_env")
+    @classmethod
+    def validate_api_key_env(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("llm.api_key_env must not be empty")
+        return normalized
+
+    @field_validator("model", "fallback_model")
+    @classmethod
+    def validate_model_fields(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("llm model fields must not be empty")
+        return normalized
 
 
 class ScoringConfig(BaseModel):

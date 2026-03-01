@@ -2,10 +2,16 @@
   "timezone": "Asia/Seoul",
   "sources": [
     {
-      "name": "naver_finance",
+      "name": "google_news_kr_market",
       "type": "rss",
       "enabled": true,
-      "url": "https://example.com/rss"
+      "url": "https://news.google.com/rss/search?q=%EC%A6%9D%EA%B6%8C+%EC%BD%94%EC%8A%A4%ED%94%BC&hl=ko&gl=KR&ceid=KR:ko"
+    },
+    {
+      "name": "google_news_ticker",
+      "type": "rss",
+      "enabled": true,
+      "url": "https://news.google.com/rss/search?q=%22{ticker}%22+%EC%A3%BC%EC%8B%9D&hl=ko&gl=KR&ceid=KR:ko"
     }
   ],
   "caching": {
@@ -15,7 +21,9 @@
   },
   "llm": {
     "provider": "gemini",
-    "model": "gemini-2.0-flash-lite",
+    "model": "gemini-2.5-flash",
+    "fallback_model": "gemini-2.5-flash-lite",
+    "api_key_env": "GEMINI_API_KEY",
     "temperature": 0.0,
     "max_retries": 1,
     "prompt_template": null

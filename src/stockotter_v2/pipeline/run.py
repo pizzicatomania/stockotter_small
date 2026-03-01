@@ -181,25 +181,29 @@ def _run_fetch_stage(
 
     deduped_by_url: dict[str, NewsItem] = {}
     errors = 0
+    try:
+        fetched_items = fetcher.fetch_recent_for_tickers(missing_tickers, hours=since_hours)
+    except Exception:
+        logger.exception("failed to fetch missing tickers")
+        return PipelineStageSummary(
+            name="fetch",
+            status=_STATUS_FAILED,
+            processed=0,
+            errors=1,
+            duration_seconds=perf_counter() - stage_started,
+            note=f"target_tickers={len(missing_tickers)}",
+        )
 
-    for ticker in missing_tickers:
-        try:
-            items = fetcher.fetch_recent_for_ticker(ticker, hours=since_hours)
-        except Exception:
-            logger.exception("failed to fetch ticker=%s", ticker)
-            errors += 1
+    for item in fetched_items:
+        existing = deduped_by_url.get(item.url)
+        if existing is None:
+            deduped_by_url[item.url] = item
             continue
 
-        for item in items:
-            existing = deduped_by_url.get(item.url)
-            if existing is None:
-                deduped_by_url[item.url] = item
-                continue
-
-            merged_tickers = sorted(set(existing.tickers_mentioned + item.tickers_mentioned))
-            deduped_by_url[item.url] = existing.model_copy(
-                update={"tickers_mentioned": merged_tickers}
-            )
+        merged_tickers = sorted(set(existing.tickers_mentioned + item.tickers_mentioned))
+        deduped_by_url[item.url] = existing.model_copy(
+            update={"tickers_mentioned": merged_tickers}
+        )
 
     stored = 0
     for item in deduped_by_url.values():

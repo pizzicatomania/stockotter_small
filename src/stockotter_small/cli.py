@@ -76,16 +76,29 @@ def fetch_news(
         min=0.0,
         help="Sleep interval between uncached HTTP requests.",
     ),
+    config_path: Path = typer.Option(
+        Path("config/config.example.yaml"),
+        "--config",
+        help="Config file path.",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+    ),
 ) -> None:
-    """Fetch Naver Finance stock news and store into SQLite."""
+    """Fetch news from configured sources and store into SQLite."""
     tickers = _load_tickers(tickers_file)
     if not tickers:
         typer.echo("no valid tickers found in file", err=True)
         raise typer.Exit(code=1)
 
+    config = load_config(config_path)
     repo = Repository(db_path)
     cache = FileCache(cache_dir)
-    fetcher = NaverNewsFetcher(cache=cache, sleep_seconds=sleep_seconds)
+    fetcher = NaverNewsFetcher(
+        cache=cache,
+        sleep_seconds=sleep_seconds,
+        sources=config.sources,
+    )
     items = fetcher.fetch_recent_for_tickers(tickers, hours=hours)
 
     stored = 0
@@ -102,7 +115,8 @@ def fetch_news(
     typer.echo(
         "stored "
         f"{stored} items "
-        f"(fetched={len(items)}, summary_only={summary_only_count}, tickers={len(tickers)})"
+        f"(fetched={len(items)}, summary_only={summary_only_count}, tickers={len(tickers)}) "
+        f"sources={len([source for source in config.sources if source.enabled])}"
     )
 
 
@@ -127,10 +141,10 @@ def llm_structure(
         dir_okay=False,
         readable=True,
     ),
-    api_key_env: str = typer.Option(
-        "GEMINI_API_KEY",
+    api_key_env: str | None = typer.Option(
+        None,
         "--api-key-env",
-        help="Environment variable name for Gemini API key.",
+        help="Gemini API key 환경변수 이름. 미지정 시 config.llm.api_key_env 사용.",
     ),
 ) -> None:
     """Structure news_items into StructuredEvent rows via Gemini JSON output."""
@@ -143,11 +157,13 @@ def llm_structure(
             config.llm.provider,
         )
 
+    resolved_api_key_env = (api_key_env or config.llm.api_key_env).strip()
     try:
         client = GeminiClient.from_env(
             model=config.llm.model,
+            fallback_model=config.llm.fallback_model,
             temperature=config.llm.temperature,
-            env_var=api_key_env,
+            env_var=resolved_api_key_env,
         )
     except ValueError as exc:
         typer.echo(str(exc), err=True)
@@ -314,10 +330,10 @@ def run_one_command_pipeline(
         dir_okay=False,
         readable=True,
     ),
-    api_key_env: str = typer.Option(
-        "GEMINI_API_KEY",
+    api_key_env: str | None = typer.Option(
+        None,
         "--api-key-env",
-        help="Environment variable name for Gemini API key.",
+        help="Gemini API key 환경변수 이름. 미지정 시 config.llm.api_key_env 사용.",
     ),
     similarity_threshold: float = typer.Option(
         0.35,
@@ -346,7 +362,11 @@ def run_one_command_pipeline(
     config = load_config(config_path)
     repo = Repository(db_path)
     cache = FileCache(cache_dir)
-    fetcher = NaverNewsFetcher(cache=cache, sleep_seconds=sleep_seconds)
+    fetcher = NaverNewsFetcher(
+        cache=cache,
+        sleep_seconds=sleep_seconds,
+        sources=config.sources,
+    )
 
     if config.llm.provider.lower() != "gemini":
         logging.warning(
@@ -354,11 +374,13 @@ def run_one_command_pipeline(
             config.llm.provider,
         )
 
+    resolved_api_key_env = (api_key_env or config.llm.api_key_env).strip()
     try:
         client = GeminiClient.from_env(
             model=config.llm.model,
+            fallback_model=config.llm.fallback_model,
             temperature=config.llm.temperature,
-            env_var=api_key_env,
+            env_var=resolved_api_key_env,
         )
     except ValueError as exc:
         typer.echo(str(exc), err=True)

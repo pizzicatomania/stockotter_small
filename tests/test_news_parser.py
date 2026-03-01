@@ -6,6 +6,7 @@ from stockotter_v2.news.parser import (
     extract_article_raw_text,
     extract_article_summary,
     parse_news_listing,
+    parse_rss_feed,
 )
 
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
@@ -42,3 +43,20 @@ def test_extract_article_summary_fallback() -> None:
 
     assert extract_article_raw_text(html) == ""
     assert extract_article_summary(html) == "본문 추출 실패 시 사용할 요약 문장"
+
+
+def test_parse_rss_feed_extracts_required_fields() -> None:
+    xml = _fixture("rss_feed.sample.xml")
+
+    items = parse_rss_feed(xml, default_source="google_news")
+
+    assert len(items) == 2
+    assert items[0].title == "삼성전자(005930) 관련 기사"
+    assert items[0].url == "https://example.com/news/005930-1"
+    assert items[0].source == "테스트언론"
+    assert items[0].summary == "삼성전자 주가 관련 요약"
+    assert items[0].published_at.strftime("%Y-%m-%d %H:%M %z") == "2026-02-28 01:15 +0000"
+
+    assert items[1].title == "SK하이닉스(000660) 관련 기사"
+    assert items[1].url == "https://example.com/news/000660-1"
+    assert items[1].source == "google_news"

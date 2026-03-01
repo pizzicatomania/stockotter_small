@@ -38,10 +38,10 @@ Storage debug smoke test:
 PYTHONPATH=src .venv/bin/python -m stockotter_small debug storage
 ```
 
-Fetch Naver Finance news for seed tickers:
+Fetch RSS news for seed tickers (sources from config):
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m stockotter_small fetch-news --tickers-file data/seed_tickers.txt --hours 24
+PYTHONPATH=src .venv/bin/python -m stockotter_small fetch-news --tickers-file data/seed_tickers.txt --hours 24 --config config/config.example.yaml
 ```
 
 Structure unprocessed news into `structured_events` via Gemini:
@@ -50,6 +50,9 @@ Structure unprocessed news into `structured_events` via Gemini:
 export GEMINI_API_KEY=...
 PYTHONPATH=src .venv/bin/python -m stockotter_small llm-structure --since-hours 24
 ```
+
+기본 모델은 `gemini-2.5-flash`이며, 쿼터/사용량 초과(`RESOURCE_EXHAUSTED`, 429/403) 오류가 발생하면
+자동으로 `gemini-2.5-flash-lite`로 fallback 됩니다.
 
 Cluster similar news (TF-IDF cosine) and store into `clusters`:
 
@@ -71,6 +74,12 @@ PYTHONPATH=src .venv/bin/python -m stockotter_small run --tickers-file data/seed
 ```
 
 위 커맨드는 표 형태로 결과를 stdout에 출력하고, JSON 리포트를 파일로 저장합니다.
+
+## Config Notes
+
+- `config/config.example.yaml`의 `sources`는 RSS 소스 리스트입니다.
+- RSS `url`에 `{ticker}` 템플릿이 있으면 seed ticker별로 URL을 확장해서 수집합니다.
+- Gemini API key 환경변수 이름은 `llm.api_key_env`로 설정합니다(기본값 `GEMINI_API_KEY`).
 
 Update paper-trading positions from daily close CSV (`ticker,date,close`) in EOD mode:
 

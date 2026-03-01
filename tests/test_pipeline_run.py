@@ -65,18 +65,22 @@ def test_cli_run_pipeline_e2e_smoke_with_mocks(monkeypatch, tmp_path) -> None:
     db_path = tmp_path / "storage.db"
     json_out = tmp_path / "run-report.json"
 
-    def _fake_fetch_recent_for_ticker(
-        self, ticker: str, *, hours: int = 24
+    def _fake_fetch_recent_for_tickers(
+        self, tickers: list[str], *, hours: int = 24
     ) -> list[NewsItem]:
         assert hours == 24
-        if ticker == "005930":
-            return [_mock_news_item(ticker=ticker, offset_minutes=1)]
-        return [_mock_news_item(ticker=ticker, offset_minutes=2)]
+        result: list[NewsItem] = []
+        for ticker in tickers:
+            if ticker == "005930":
+                result.append(_mock_news_item(ticker=ticker, offset_minutes=1))
+            else:
+                result.append(_mock_news_item(ticker=ticker, offset_minutes=2))
+        return result
 
     monkeypatch.setattr(
         cli_module.NaverNewsFetcher,
-        "fetch_recent_for_ticker",
-        _fake_fetch_recent_for_ticker,
+        "fetch_recent_for_tickers",
+        _fake_fetch_recent_for_tickers,
     )
 
     client = QueueClient(
@@ -169,19 +173,23 @@ def test_cli_run_pipeline_skips_stages_when_data_exists(monkeypatch, tmp_path) -
 
     fetch_calls = {"count": 0}
 
-    def _fake_fetch_recent_for_ticker(
-        self, ticker: str, *, hours: int = 24
+    def _fake_fetch_recent_for_tickers(
+        self, tickers: list[str], *, hours: int = 24
     ) -> list[NewsItem]:
         fetch_calls["count"] += 1
         assert hours == 24
-        if ticker == "005930":
-            return [_mock_news_item(ticker=ticker, offset_minutes=1)]
-        return [_mock_news_item(ticker=ticker, offset_minutes=2)]
+        result: list[NewsItem] = []
+        for ticker in tickers:
+            if ticker == "005930":
+                result.append(_mock_news_item(ticker=ticker, offset_minutes=1))
+            else:
+                result.append(_mock_news_item(ticker=ticker, offset_minutes=2))
+        return result
 
     monkeypatch.setattr(
         cli_module.NaverNewsFetcher,
-        "fetch_recent_for_ticker",
-        _fake_fetch_recent_for_ticker,
+        "fetch_recent_for_tickers",
+        _fake_fetch_recent_for_tickers,
     )
 
     def _fake_from_env(cls, **_: object) -> QueueClient:
@@ -240,7 +248,7 @@ def test_cli_run_pipeline_skips_stages_when_data_exists(monkeypatch, tmp_path) -
         ],
     )
     assert first.exit_code == 0
-    assert fetch_calls["count"] == 2
+    assert fetch_calls["count"] == 1
 
     second = runner.invoke(
         cli_module.app,
@@ -263,7 +271,7 @@ def test_cli_run_pipeline_skips_stages_when_data_exists(monkeypatch, tmp_path) -
         ],
     )
     assert second.exit_code == 0
-    assert fetch_calls["count"] == 2
+    assert fetch_calls["count"] == 1
 
     payload = json.loads(second_json_out.read_text(encoding="utf-8"))
     assert [stage["status"] for stage in payload["stages"]] == [

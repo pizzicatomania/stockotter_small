@@ -4,3 +4,20 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
+
+# Local config / secrets
+config/config.yaml
+.env
+.env.*
+
+# Runtime outputs
+.codex_logs/
+out/
+data/cache/
+data/storage/
+data/reports/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
