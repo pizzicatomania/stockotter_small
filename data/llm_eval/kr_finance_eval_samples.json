@@ -1,0 +1,1390 @@
+[
+  {
+    "news_id": "eval-0001",
+    "title": "삼성전자, 실적 가이던스 상향에 강세",
+    "snippet": "삼성전자가 분기 가이던스를 상향 조정했다.",
+    "raw_text": "삼성전자(005930)는 실적 가이던스를 상향하며 수익성 개선 기대를 높였다.",
+    "expected": {
+      "event_type": "earnings_guidance",
+      "direction": "positive",
+      "horizon": "short_term",
+      "risk_flags": []
+    },
+    "recorded_output": {
+      "event_type": "earnings_guidance",
+      "direction": "positive",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "삼성전자"
+      ],
+      "risk_flags": []
+    }
+  },
+  {
+    "news_id": "eval-0002",
+    "title": "SK하이닉스, 대형 공급 계약 수주",
+    "snippet": "SK하이닉스가 대형 고객사와 공급 계약을 체결했다.",
+    "raw_text": "SK하이닉스(000660)는 신규 공급 계약을 확보해 중기 매출 성장 기대가 커졌다.",
+    "expected": {
+      "event_type": "contract_win",
+      "direction": "positive",
+      "horizon": "mid_term",
+      "risk_flags": []
+    },
+    "recorded_output": {
+      "event_type": "contract_win",
+      "direction": "positive",
+      "confidence": 0.8,
+      "horizon": "mid_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "SK하이닉스"
+      ],
+      "risk_flags": []
+    }
+  },
+  {
+    "news_id": "eval-0003",
+    "title": "NAVER, 감독 당국 조사 착수 소식",
+    "snippet": "당국 조사 소식에 투자심리가 약화됐다.",
+    "raw_text": "NAVER(035420)는 감독 당국 조사 이슈로 규제 리스크가 부각됐다.",
+    "expected": {
+      "event_type": "investigation",
+      "direction": "negative",
+      "horizon": "short_term",
+      "risk_flags": [
+        "regulatory_risk"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "investigation",
+      "direction": "negative",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "NAVER"
+      ],
+      "risk_flags": [
+        "regulatory_risk"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0004",
+    "title": "카카오, 수급 혼조 속 변동성 확대",
+    "snippet": "외국인 매도와 기관 매수가 엇갈렸다.",
+    "raw_text": "카카오(035720)는 수급 엇갈림으로 단기 변동성이 커지는 모습이다.",
+    "expected": {
+      "event_type": "demand",
+      "direction": "mixed",
+      "horizon": "short_term",
+      "risk_flags": [
+        "investor_sentiment_divergence"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "demand",
+      "direction": "mixed",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "카카오"
+      ],
+      "risk_flags": [
+        "investor_sentiment_divergence"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0005",
+    "title": "현대차, 공급망 점검 발표",
+    "snippet": "공급망 재편 이슈가 중기 변수로 작용한다.",
+    "raw_text": "현대차(005380)는 공급망 점검 계획을 공개했으며 거시 불확실성이 존재한다.",
+    "expected": {
+      "event_type": "supply_chain",
+      "direction": "neutral",
+      "horizon": "mid_term",
+      "risk_flags": [
+        "macro_uncertainty"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "supply_chain",
+      "direction": "neutral",
+      "confidence": 0.8,
+      "horizon": "mid_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "현대차"
+      ],
+      "risk_flags": [
+        "macro_uncertainty"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0006",
+    "title": "삼성전자, 대형 공급 계약 수주",
+    "snippet": "삼성전자가 대형 고객사와 공급 계약을 체결했다.",
+    "raw_text": "삼성전자(005930)는 신규 공급 계약을 확보해 중기 매출 성장 기대가 커졌다.",
+    "expected": {
+      "event_type": "contract_win",
+      "direction": "positive",
+      "horizon": "mid_term",
+      "risk_flags": []
+    },
+    "recorded_output": {
+      "event_type": "contract_win",
+      "direction": "positive",
+      "confidence": 0.8,
+      "horizon": "mid_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "삼성전자"
+      ],
+      "risk_flags": []
+    }
+  },
+  {
+    "news_id": "eval-0007",
+    "title": "SK하이닉스, 감독 당국 조사 착수 소식",
+    "snippet": "당국 조사 소식에 투자심리가 약화됐다.",
+    "raw_text": "SK하이닉스(000660)는 감독 당국 조사 이슈로 규제 리스크가 부각됐다.",
+    "expected": {
+      "event_type": "investigation",
+      "direction": "negative",
+      "horizon": "short_term",
+      "risk_flags": [
+        "regulatory_risk"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "investigation",
+      "direction": "negative",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "SK하이닉스"
+      ],
+      "risk_flags": [
+        "regulatory_risk"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0008",
+    "title": "NAVER, 수급 혼조 속 변동성 확대",
+    "snippet": "외국인 매도와 기관 매수가 엇갈렸다.",
+    "raw_text": "NAVER(035420)는 수급 엇갈림으로 단기 변동성이 커지는 모습이다.",
+    "expected": {
+      "event_type": "demand",
+      "direction": "mixed",
+      "horizon": "short_term",
+      "risk_flags": [
+        "investor_sentiment_divergence"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "demand",
+      "direction": "mixed",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "NAVER"
+      ],
+      "risk_flags": [
+        "investor_sentiment_divergence"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0009",
+    "title": "카카오, 공급망 점검 발표",
+    "snippet": "공급망 재편 이슈가 중기 변수로 작용한다.",
+    "raw_text": "카카오(035720)는 공급망 점검 계획을 공개했으며 거시 불확실성이 존재한다.",
+    "expected": {
+      "event_type": "supply_chain",
+      "direction": "neutral",
+      "horizon": "mid_term",
+      "risk_flags": [
+        "macro_uncertainty"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "supply_chain",
+      "direction": "neutral",
+      "confidence": 0.8,
+      "horizon": "mid_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "카카오"
+      ],
+      "risk_flags": [
+        "macro_uncertainty"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0010",
+    "title": "현대차, 소송 리스크 부각",
+    "snippet": "소송 관련 공시로 장기 불확실성이 확대됐다.",
+    "raw_text": "현대차(005380)는 소송 이슈로 장기 리스크가 증가했다.",
+    "expected": {
+      "event_type": "litigation",
+      "direction": "negative",
+      "horizon": "long_term",
+      "risk_flags": [
+        "litigation_risk"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "litigation",
+      "direction": "negative",
+      "confidence": 0.8,
+      "horizon": "long_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "현대차"
+      ],
+      "risk_flags": [
+        "litigation_risk"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0011",
+    "title": "삼성전자, 감독 당국 조사 착수 소식",
+    "snippet": "당국 조사 소식에 투자심리가 약화됐다.",
+    "raw_text": "삼성전자(005930)는 감독 당국 조사 이슈로 규제 리스크가 부각됐다.",
+    "expected": {
+      "event_type": "investigation",
+      "direction": "negative",
+      "horizon": "short_term",
+      "risk_flags": [
+        "regulatory_risk"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "investigation",
+      "direction": "negative",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "삼성전자"
+      ],
+      "risk_flags": [
+        "regulatory_risk"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0012",
+    "title": "SK하이닉스, 수급 혼조 속 변동성 확대",
+    "snippet": "외국인 매도와 기관 매수가 엇갈렸다.",
+    "raw_text": "SK하이닉스(000660)는 수급 엇갈림으로 단기 변동성이 커지는 모습이다.",
+    "expected": {
+      "event_type": "demand",
+      "direction": "mixed",
+      "horizon": "short_term",
+      "risk_flags": [
+        "investor_sentiment_divergence"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "demand",
+      "direction": "mixed",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "SK하이닉스"
+      ],
+      "risk_flags": [
+        "investor_sentiment_divergence"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0013",
+    "title": "NAVER, 공급망 점검 발표",
+    "snippet": "공급망 재편 이슈가 중기 변수로 작용한다.",
+    "raw_text": "NAVER(035420)는 공급망 점검 계획을 공개했으며 거시 불확실성이 존재한다.",
+    "expected": {
+      "event_type": "supply_chain",
+      "direction": "neutral",
+      "horizon": "mid_term",
+      "risk_flags": [
+        "macro_uncertainty"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "supply_chain",
+      "direction": "neutral",
+      "confidence": 0.8,
+      "horizon": "mid_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "NAVER"
+      ],
+      "risk_flags": [
+        "macro_uncertainty"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0014",
+    "title": "카카오, 소송 리스크 부각",
+    "snippet": "소송 관련 공시로 장기 불확실성이 확대됐다.",
+    "raw_text": "카카오(035720)는 소송 이슈로 장기 리스크가 증가했다.",
+    "expected": {
+      "event_type": "litigation",
+      "direction": "negative",
+      "horizon": "long_term",
+      "risk_flags": [
+        "litigation_risk"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "litigation",
+      "direction": "negative",
+      "confidence": 0.8,
+      "horizon": "long_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "카카오"
+      ],
+      "risk_flags": [
+        "litigation_risk"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0015",
+    "title": "현대차, 실적 가이던스 상향에 강세",
+    "snippet": "현대차가 분기 가이던스를 상향 조정했다.",
+    "raw_text": "현대차(005380)는 실적 가이던스를 상향하며 수익성 개선 기대를 높였다.",
+    "expected": {
+      "event_type": "earnings_guidance",
+      "direction": "positive",
+      "horizon": "short_term",
+      "risk_flags": []
+    },
+    "recorded_output": {
+      "event_type": "earnings_guidance",
+      "direction": "mixed",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "현대차"
+      ],
+      "risk_flags": []
+    }
+  },
+  {
+    "news_id": "eval-0016",
+    "title": "삼성전자, 수급 혼조 속 변동성 확대",
+    "snippet": "외국인 매도와 기관 매수가 엇갈렸다.",
+    "raw_text": "삼성전자(005930)는 수급 엇갈림으로 단기 변동성이 커지는 모습이다.",
+    "expected": {
+      "event_type": "demand",
+      "direction": "mixed",
+      "horizon": "short_term",
+      "risk_flags": [
+        "investor_sentiment_divergence"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "demand",
+      "direction": "mixed",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "삼성전자"
+      ],
+      "risk_flags": [
+        "investor_sentiment_divergence"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0017",
+    "title": "SK하이닉스, 공급망 점검 발표",
+    "snippet": "공급망 재편 이슈가 중기 변수로 작용한다.",
+    "raw_text": "SK하이닉스(000660)는 공급망 점검 계획을 공개했으며 거시 불확실성이 존재한다.",
+    "expected": {
+      "event_type": "supply_chain",
+      "direction": "neutral",
+      "horizon": "mid_term",
+      "risk_flags": [
+        "macro_uncertainty"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "supply_chain",
+      "direction": "neutral",
+      "confidence": 0.8,
+      "horizon": "mid_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "SK하이닉스"
+      ],
+      "risk_flags": [
+        "macro_uncertainty"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0018",
+    "title": "NAVER, 소송 리스크 부각",
+    "snippet": "소송 관련 공시로 장기 불확실성이 확대됐다.",
+    "raw_text": "NAVER(035420)는 소송 이슈로 장기 리스크가 증가했다.",
+    "expected": {
+      "event_type": "litigation",
+      "direction": "negative",
+      "horizon": "long_term",
+      "risk_flags": [
+        "litigation_risk"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "litigation",
+      "direction": "negative",
+      "confidence": 0.8,
+      "horizon": "long_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "NAVER"
+      ],
+      "risk_flags": [
+        "litigation_risk"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0019",
+    "title": "카카오, 실적 가이던스 상향에 강세",
+    "snippet": "카카오가 분기 가이던스를 상향 조정했다.",
+    "raw_text": "카카오(035720)는 실적 가이던스를 상향하며 수익성 개선 기대를 높였다.",
+    "expected": {
+      "event_type": "earnings_guidance",
+      "direction": "positive",
+      "horizon": "short_term",
+      "risk_flags": []
+    },
+    "recorded_output": {
+      "event_type": "earnings_guidance",
+      "direction": "positive",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "카카오"
+      ],
+      "risk_flags": []
+    }
+  },
+  {
+    "news_id": "eval-0020",
+    "title": "현대차, 대형 공급 계약 수주",
+    "snippet": "현대차가 대형 고객사와 공급 계약을 체결했다.",
+    "raw_text": "현대차(005380)는 신규 공급 계약을 확보해 중기 매출 성장 기대가 커졌다.",
+    "expected": {
+      "event_type": "contract_win",
+      "direction": "positive",
+      "horizon": "mid_term",
+      "risk_flags": []
+    },
+    "recorded_output": {
+      "event_type": "contract_win",
+      "direction": "positive",
+      "confidence": 0.8,
+      "horizon": "mid_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "현대차"
+      ],
+      "risk_flags": []
+    }
+  },
+  {
+    "news_id": "eval-0021",
+    "title": "삼성전자, 공급망 점검 발표",
+    "snippet": "공급망 재편 이슈가 중기 변수로 작용한다.",
+    "raw_text": "삼성전자(005930)는 공급망 점검 계획을 공개했으며 거시 불확실성이 존재한다.",
+    "expected": {
+      "event_type": "supply_chain",
+      "direction": "neutral",
+      "horizon": "mid_term",
+      "risk_flags": [
+        "macro_uncertainty"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "supply_chain",
+      "direction": "neutral",
+      "confidence": 0.8,
+      "horizon": "mid_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "삼성전자"
+      ],
+      "risk_flags": [
+        "macro_uncertainty"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0022",
+    "title": "SK하이닉스, 소송 리스크 부각",
+    "snippet": "소송 관련 공시로 장기 불확실성이 확대됐다.",
+    "raw_text": "SK하이닉스(000660)는 소송 이슈로 장기 리스크가 증가했다.",
+    "expected": {
+      "event_type": "litigation",
+      "direction": "negative",
+      "horizon": "long_term",
+      "risk_flags": [
+        "litigation_risk"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "litigation",
+      "direction": "negative",
+      "confidence": 0.8,
+      "horizon": "long_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "SK하이닉스"
+      ],
+      "risk_flags": [
+        "extra_risk",
+        "litigation_risk"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0023",
+    "title": "NAVER, 실적 가이던스 상향에 강세",
+    "snippet": "NAVER가 분기 가이던스를 상향 조정했다.",
+    "raw_text": "NAVER(035420)는 실적 가이던스를 상향하며 수익성 개선 기대를 높였다.",
+    "expected": {
+      "event_type": "earnings_guidance",
+      "direction": "positive",
+      "horizon": "short_term",
+      "risk_flags": []
+    },
+    "recorded_output": {
+      "event_type": "earnings_guidance",
+      "direction": "positive",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "NAVER"
+      ],
+      "risk_flags": []
+    }
+  },
+  {
+    "news_id": "eval-0024",
+    "title": "카카오, 대형 공급 계약 수주",
+    "snippet": "카카오가 대형 고객사와 공급 계약을 체결했다.",
+    "raw_text": "카카오(035720)는 신규 공급 계약을 확보해 중기 매출 성장 기대가 커졌다.",
+    "expected": {
+      "event_type": "contract_win",
+      "direction": "positive",
+      "horizon": "mid_term",
+      "risk_flags": []
+    },
+    "recorded_output": {
+      "event_type": "contract_win",
+      "direction": "positive",
+      "confidence": 0.8,
+      "horizon": "mid_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "카카오"
+      ],
+      "risk_flags": []
+    }
+  },
+  {
+    "news_id": "eval-0025",
+    "title": "현대차, 감독 당국 조사 착수 소식",
+    "snippet": "당국 조사 소식에 투자심리가 약화됐다.",
+    "raw_text": "현대차(005380)는 감독 당국 조사 이슈로 규제 리스크가 부각됐다.",
+    "expected": {
+      "event_type": "investigation",
+      "direction": "negative",
+      "horizon": "short_term",
+      "risk_flags": [
+        "regulatory_risk"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "investigation",
+      "direction": "negative",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "현대차"
+      ],
+      "risk_flags": [
+        "regulatory_risk"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0026",
+    "title": "삼성전자, 소송 리스크 부각",
+    "snippet": "소송 관련 공시로 장기 불확실성이 확대됐다.",
+    "raw_text": "삼성전자(005930)는 소송 이슈로 장기 리스크가 증가했다.",
+    "expected": {
+      "event_type": "litigation",
+      "direction": "negative",
+      "horizon": "long_term",
+      "risk_flags": [
+        "litigation_risk"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "litigation",
+      "direction": "negative",
+      "confidence": 0.8,
+      "horizon": "long_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "삼성전자"
+      ],
+      "risk_flags": [
+        "litigation_risk"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0027",
+    "title": "SK하이닉스, 실적 가이던스 상향에 강세",
+    "snippet": "SK하이닉스가 분기 가이던스를 상향 조정했다.",
+    "raw_text": "SK하이닉스(000660)는 실적 가이던스를 상향하며 수익성 개선 기대를 높였다.",
+    "expected": {
+      "event_type": "earnings_guidance",
+      "direction": "positive",
+      "horizon": "short_term",
+      "risk_flags": []
+    },
+    "recorded_output": {
+      "event_type": "earnings_guidance",
+      "direction": "positive",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "SK하이닉스"
+      ],
+      "risk_flags": []
+    }
+  },
+  {
+    "news_id": "eval-0028",
+    "title": "NAVER, 대형 공급 계약 수주",
+    "snippet": "NAVER가 대형 고객사와 공급 계약을 체결했다.",
+    "raw_text": "NAVER(035420)는 신규 공급 계약을 확보해 중기 매출 성장 기대가 커졌다.",
+    "expected": {
+      "event_type": "contract_win",
+      "direction": "positive",
+      "horizon": "mid_term",
+      "risk_flags": []
+    },
+    "recorded_output": {
+      "event_type": "contract_win",
+      "direction": "positive",
+      "confidence": 0.8,
+      "horizon": "mid_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "NAVER"
+      ],
+      "risk_flags": []
+    }
+  },
+  {
+    "news_id": "eval-0029",
+    "title": "카카오, 감독 당국 조사 착수 소식",
+    "snippet": "당국 조사 소식에 투자심리가 약화됐다.",
+    "raw_text": "카카오(035720)는 감독 당국 조사 이슈로 규제 리스크가 부각됐다.",
+    "expected": {
+      "event_type": "investigation",
+      "direction": "negative",
+      "horizon": "short_term",
+      "risk_flags": [
+        "regulatory_risk"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "investigation",
+      "direction": "negative",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "카카오"
+      ],
+      "risk_flags": [
+        "regulatory_risk"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0030",
+    "title": "현대차, 수급 혼조 속 변동성 확대",
+    "snippet": "외국인 매도와 기관 매수가 엇갈렸다.",
+    "raw_text": "현대차(005380)는 수급 엇갈림으로 단기 변동성이 커지는 모습이다.",
+    "expected": {
+      "event_type": "demand",
+      "direction": "mixed",
+      "horizon": "short_term",
+      "risk_flags": [
+        "investor_sentiment_divergence"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "demand",
+      "direction": "neutral",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "현대차"
+      ],
+      "risk_flags": [
+        "investor_sentiment_divergence"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0031",
+    "title": "삼성전자, 실적 가이던스 상향에 강세",
+    "snippet": "삼성전자가 분기 가이던스를 상향 조정했다.",
+    "raw_text": "삼성전자(005930)는 실적 가이던스를 상향하며 수익성 개선 기대를 높였다.",
+    "expected": {
+      "event_type": "earnings_guidance",
+      "direction": "positive",
+      "horizon": "short_term",
+      "risk_flags": []
+    },
+    "recorded_output": {
+      "event_type": "earnings_guidance",
+      "direction": "positive",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "삼성전자"
+      ],
+      "risk_flags": []
+    }
+  },
+  {
+    "news_id": "eval-0032",
+    "title": "SK하이닉스, 대형 공급 계약 수주",
+    "snippet": "SK하이닉스가 대형 고객사와 공급 계약을 체결했다.",
+    "raw_text": "SK하이닉스(000660)는 신규 공급 계약을 확보해 중기 매출 성장 기대가 커졌다.",
+    "expected": {
+      "event_type": "contract_win",
+      "direction": "positive",
+      "horizon": "mid_term",
+      "risk_flags": []
+    },
+    "recorded_output": {
+      "event_type": "contract_win",
+      "direction": "positive",
+      "confidence": 0.8,
+      "horizon": "mid_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "SK하이닉스"
+      ],
+      "risk_flags": []
+    }
+  },
+  {
+    "news_id": "eval-0033",
+    "title": "NAVER, 감독 당국 조사 착수 소식",
+    "snippet": "당국 조사 소식에 투자심리가 약화됐다.",
+    "raw_text": "NAVER(035420)는 감독 당국 조사 이슈로 규제 리스크가 부각됐다.",
+    "expected": {
+      "event_type": "investigation",
+      "direction": "negative",
+      "horizon": "short_term",
+      "risk_flags": [
+        "regulatory_risk"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "investigation",
+      "direction": "negative",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "NAVER"
+      ],
+      "risk_flags": [
+        "regulatory_risk"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0034",
+    "title": "카카오, 수급 혼조 속 변동성 확대",
+    "snippet": "외국인 매도와 기관 매수가 엇갈렸다.",
+    "raw_text": "카카오(035720)는 수급 엇갈림으로 단기 변동성이 커지는 모습이다.",
+    "expected": {
+      "event_type": "demand",
+      "direction": "mixed",
+      "horizon": "short_term",
+      "risk_flags": [
+        "investor_sentiment_divergence"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "demand",
+      "direction": "mixed",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "카카오"
+      ],
+      "risk_flags": [
+        "investor_sentiment_divergence"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0035",
+    "title": "현대차, 공급망 점검 발표",
+    "snippet": "공급망 재편 이슈가 중기 변수로 작용한다.",
+    "raw_text": "현대차(005380)는 공급망 점검 계획을 공개했으며 거시 불확실성이 존재한다.",
+    "expected": {
+      "event_type": "supply_chain",
+      "direction": "neutral",
+      "horizon": "mid_term",
+      "risk_flags": [
+        "macro_uncertainty"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "supply_chain",
+      "direction": "neutral",
+      "confidence": 0.8,
+      "horizon": "mid_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "현대차"
+      ],
+      "risk_flags": [
+        "macro_uncertainty"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0036",
+    "title": "삼성전자, 대형 공급 계약 수주",
+    "snippet": "삼성전자가 대형 고객사와 공급 계약을 체결했다.",
+    "raw_text": "삼성전자(005930)는 신규 공급 계약을 확보해 중기 매출 성장 기대가 커졌다.",
+    "expected": {
+      "event_type": "contract_win",
+      "direction": "positive",
+      "horizon": "mid_term",
+      "risk_flags": []
+    },
+    "recorded_output": {
+      "event_type": "contract_win",
+      "direction": "positive",
+      "confidence": 0.8,
+      "horizon": "mid_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "삼성전자"
+      ],
+      "risk_flags": []
+    }
+  },
+  {
+    "news_id": "eval-0037",
+    "title": "SK하이닉스, 감독 당국 조사 착수 소식",
+    "snippet": "당국 조사 소식에 투자심리가 약화됐다.",
+    "raw_text": "SK하이닉스(000660)는 감독 당국 조사 이슈로 규제 리스크가 부각됐다.",
+    "expected": {
+      "event_type": "investigation",
+      "direction": "negative",
+      "horizon": "short_term",
+      "risk_flags": [
+        "regulatory_risk"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "investigation",
+      "direction": "negative",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "SK하이닉스"
+      ],
+      "risk_flags": [
+        "regulatory_risk"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0038",
+    "title": "NAVER, 수급 혼조 속 변동성 확대",
+    "snippet": "외국인 매도와 기관 매수가 엇갈렸다.",
+    "raw_text": "NAVER(035420)는 수급 엇갈림으로 단기 변동성이 커지는 모습이다.",
+    "expected": {
+      "event_type": "demand",
+      "direction": "mixed",
+      "horizon": "short_term",
+      "risk_flags": [
+        "investor_sentiment_divergence"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "demand",
+      "direction": "mixed",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "NAVER"
+      ],
+      "risk_flags": [
+        "investor_sentiment_divergence"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0039",
+    "title": "카카오, 공급망 점검 발표",
+    "snippet": "공급망 재편 이슈가 중기 변수로 작용한다.",
+    "raw_text": "카카오(035720)는 공급망 점검 계획을 공개했으며 거시 불확실성이 존재한다.",
+    "expected": {
+      "event_type": "supply_chain",
+      "direction": "neutral",
+      "horizon": "mid_term",
+      "risk_flags": [
+        "macro_uncertainty"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "supply_chain",
+      "direction": "neutral",
+      "confidence": 0.8,
+      "horizon": "mid_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "카카오"
+      ],
+      "risk_flags": [
+        "macro_uncertainty"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0040",
+    "title": "현대차, 소송 리스크 부각",
+    "snippet": "소송 관련 공시로 장기 불확실성이 확대됐다.",
+    "raw_text": "현대차(005380)는 소송 이슈로 장기 리스크가 증가했다.",
+    "expected": {
+      "event_type": "litigation",
+      "direction": "negative",
+      "horizon": "long_term",
+      "risk_flags": [
+        "litigation_risk"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "litigation",
+      "direction": "negative",
+      "confidence": 0.8,
+      "horizon": "long_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "현대차"
+      ],
+      "risk_flags": [
+        "litigation_risk"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0041",
+    "title": "삼성전자, 감독 당국 조사 착수 소식",
+    "snippet": "당국 조사 소식에 투자심리가 약화됐다.",
+    "raw_text": "삼성전자(005930)는 감독 당국 조사 이슈로 규제 리스크가 부각됐다.",
+    "expected": {
+      "event_type": "investigation",
+      "direction": "negative",
+      "horizon": "short_term",
+      "risk_flags": [
+        "regulatory_risk"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "investigation",
+      "direction": "negative",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "삼성전자"
+      ],
+      "risk_flags": [
+        "regulatory_risk"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0042",
+    "title": "SK하이닉스, 수급 혼조 속 변동성 확대",
+    "snippet": "외국인 매도와 기관 매수가 엇갈렸다.",
+    "raw_text": "SK하이닉스(000660)는 수급 엇갈림으로 단기 변동성이 커지는 모습이다.",
+    "expected": {
+      "event_type": "demand",
+      "direction": "mixed",
+      "horizon": "short_term",
+      "risk_flags": [
+        "investor_sentiment_divergence"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "demand",
+      "direction": "mixed",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "SK하이닉스"
+      ],
+      "risk_flags": [
+        "investor_sentiment_divergence"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0043",
+    "title": "NAVER, 공급망 점검 발표",
+    "snippet": "공급망 재편 이슈가 중기 변수로 작용한다.",
+    "raw_text": "NAVER(035420)는 공급망 점검 계획을 공개했으며 거시 불확실성이 존재한다.",
+    "expected": {
+      "event_type": "supply_chain",
+      "direction": "neutral",
+      "horizon": "mid_term",
+      "risk_flags": [
+        "macro_uncertainty"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "supply_chain",
+      "direction": "neutral",
+      "confidence": 0.8,
+      "horizon": "mid_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "NAVER"
+      ],
+      "risk_flags": [
+        "macro_uncertainty"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0044",
+    "title": "카카오, 소송 리스크 부각",
+    "snippet": "소송 관련 공시로 장기 불확실성이 확대됐다.",
+    "raw_text": "카카오(035720)는 소송 이슈로 장기 리스크가 증가했다.",
+    "expected": {
+      "event_type": "litigation",
+      "direction": "negative",
+      "horizon": "long_term",
+      "risk_flags": [
+        "litigation_risk"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "litigation",
+      "direction": "negative",
+      "confidence": 0.8,
+      "horizon": "long_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "카카오"
+      ],
+      "risk_flags": [
+        "extra_risk",
+        "litigation_risk"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0045",
+    "title": "현대차, 실적 가이던스 상향에 강세",
+    "snippet": "현대차가 분기 가이던스를 상향 조정했다.",
+    "raw_text": "현대차(005380)는 실적 가이던스를 상향하며 수익성 개선 기대를 높였다.",
+    "expected": {
+      "event_type": "earnings_guidance",
+      "direction": "positive",
+      "horizon": "short_term",
+      "risk_flags": []
+    },
+    "recorded_output": {
+      "event_type": "earnings_guidance",
+      "direction": "mixed",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "현대차"
+      ],
+      "risk_flags": []
+    }
+  },
+  {
+    "news_id": "eval-0046",
+    "title": "삼성전자, 수급 혼조 속 변동성 확대",
+    "snippet": "외국인 매도와 기관 매수가 엇갈렸다.",
+    "raw_text": "삼성전자(005930)는 수급 엇갈림으로 단기 변동성이 커지는 모습이다.",
+    "expected": {
+      "event_type": "demand",
+      "direction": "mixed",
+      "horizon": "short_term",
+      "risk_flags": [
+        "investor_sentiment_divergence"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "demand",
+      "direction": "mixed",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "삼성전자"
+      ],
+      "risk_flags": [
+        "investor_sentiment_divergence"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0047",
+    "title": "SK하이닉스, 공급망 점검 발표",
+    "snippet": "공급망 재편 이슈가 중기 변수로 작용한다.",
+    "raw_text": "SK하이닉스(000660)는 공급망 점검 계획을 공개했으며 거시 불확실성이 존재한다.",
+    "expected": {
+      "event_type": "supply_chain",
+      "direction": "neutral",
+      "horizon": "mid_term",
+      "risk_flags": [
+        "macro_uncertainty"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "supply_chain",
+      "direction": "neutral",
+      "confidence": 0.8,
+      "horizon": "mid_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "SK하이닉스"
+      ],
+      "risk_flags": [
+        "macro_uncertainty"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0048",
+    "title": "NAVER, 소송 리스크 부각",
+    "snippet": "소송 관련 공시로 장기 불확실성이 확대됐다.",
+    "raw_text": "NAVER(035420)는 소송 이슈로 장기 리스크가 증가했다.",
+    "expected": {
+      "event_type": "litigation",
+      "direction": "negative",
+      "horizon": "long_term",
+      "risk_flags": [
+        "litigation_risk"
+      ]
+    },
+    "recorded_output": {
+      "event_type": "litigation",
+      "direction": "negative",
+      "confidence": 0.8,
+      "horizon": "long_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "NAVER"
+      ],
+      "risk_flags": [
+        "litigation_risk"
+      ]
+    }
+  },
+  {
+    "news_id": "eval-0049",
+    "title": "카카오, 실적 가이던스 상향에 강세",
+    "snippet": "카카오가 분기 가이던스를 상향 조정했다.",
+    "raw_text": "카카오(035720)는 실적 가이던스를 상향하며 수익성 개선 기대를 높였다.",
+    "expected": {
+      "event_type": "earnings_guidance",
+      "direction": "positive",
+      "horizon": "short_term",
+      "risk_flags": []
+    },
+    "recorded_output": {
+      "event_type": "earnings_guidance",
+      "direction": "positive",
+      "confidence": 0.8,
+      "horizon": "short_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "카카오"
+      ],
+      "risk_flags": []
+    }
+  },
+  {
+    "news_id": "eval-0050",
+    "title": "현대차, 대형 공급 계약 수주",
+    "snippet": "현대차가 대형 고객사와 공급 계약을 체결했다.",
+    "raw_text": "현대차(005380)는 신규 공급 계약을 확보해 중기 매출 성장 기대가 커졌다.",
+    "expected": {
+      "event_type": "contract_win",
+      "direction": "positive",
+      "horizon": "mid_term",
+      "risk_flags": []
+    },
+    "recorded_output": {
+      "event_type": "contract_win",
+      "direction": "positive",
+      "confidence": 0.8,
+      "horizon": "mid_term",
+      "themes": [
+        "kr_market"
+      ],
+      "entities": [
+        "현대차"
+      ],
+      "risk_flags": []
+    }
+  }
+]

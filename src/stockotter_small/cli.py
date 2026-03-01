@@ -10,7 +10,7 @@ import typer
 
 from stockotter_v2 import load_config
 from stockotter_v2.clusterer import TfidfClusterer
-from stockotter_v2.llm import GeminiClient, LLMStructurer
+from stockotter_v2.llm import GeminiClient, LLMStructurer, evaluate_samples, load_eval_samples
 from stockotter_v2.news.naver_fetcher import NaverNewsFetcher
 from stockotter_v2.paper import apply_eod_rules, create_entry_position
 from stockotter_v2.pipeline import (
@@ -185,6 +185,62 @@ def llm_structure(
     typer.echo(
         f"processed={stats.processed} failed={stats.failed} skipped={stats.skipped}"
     )
+
+
+@app.command("llm-eval")
+def llm_eval(
+    dataset: str = typer.Option(
+        "data/llm_eval/*.json",
+        "--dataset",
+        help="Glob pattern for evaluation dataset JSON files.",
+    ),
+    report: Path = typer.Option(
+        Path("out/llm_eval.json"),
+        "--report",
+        help="Output report JSON path.",
+    ),
+    mode: str = typer.Option(
+        "recorded",
+        "--mode",
+        help="Evaluation mode: recorded or mock.",
+    ),
+) -> None:
+    """Run StructuredEvent extraction evaluation harness."""
+    normalized_mode = mode.strip().lower()
+    if normalized_mode not in {"recorded", "mock"}:
+        typer.echo("mode must be one of: recorded, mock", err=True)
+        raise typer.Exit(code=1)
+
+    try:
+        samples = load_eval_samples(dataset)
+    except Exception as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    report_payload = evaluate_samples(
+        samples,
+        mode=normalized_mode,  # type: ignore[arg-type]
+    )
+
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text(
+        json.dumps(report_payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    metrics = report_payload["metrics"]
+    typer.echo(
+        "llm_eval "
+        f"samples={metrics['sample_count']} "
+        f"evaluated={metrics['evaluated_count']} "
+        f"errors={metrics['error_count']} "
+        f"event_type_acc={metrics['event_type_accuracy']:.3f} "
+        f"direction_acc={metrics['direction_accuracy']:.3f} "
+        f"horizon_acc={metrics['horizon_accuracy']:.3f} "
+        f"risk_precision={metrics['risk_flags_precision']:.3f} "
+        f"risk_recall={metrics['risk_flags_recall']:.3f}"
+    )
+    typer.echo(f"report={report}")
 
 
 @app.command("cluster")

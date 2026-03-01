@@ -63,6 +63,38 @@ Cluster similar news (TF-IDF cosine) and store into `clusters`:
 PYTHONPATH=src .venv/bin/python -m stockotter_small cluster --since-hours 24
 ```
 
+StructuredEvent 추출 품질 평가(오프라인, recorded output 사용):
+
+```bash
+PYTHONPATH=src .venv/bin/python -m stockotter_small llm-eval \
+  --dataset 'data/llm_eval/*.json' \
+  --report out/llm_eval.json \
+  --mode recorded
+```
+
+평가 데이터 샘플 포맷:
+
+```json
+{
+  "news_id": "eval-0001",
+  "title": "삼성전자, 실적 가이던스 상향",
+  "snippet": "분기 전망 개선",
+  "raw_text": "기사 본문...",
+  "expected": {
+    "event_type": "earnings_guidance",
+    "direction": "positive",
+    "horizon": "short_term",
+    "risk_flags": []
+  },
+  "recorded_output": {
+    "event_type": "earnings_guidance",
+    "direction": "positive",
+    "horizon": "short_term",
+    "risk_flags": []
+  }
+}
+```
+
 Score clustered representative events and export top candidates:
 
 ```bash
