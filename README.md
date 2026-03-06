@@ -141,16 +141,21 @@ make e2e
 
 - `KIS_APP_KEY`
 - `KIS_APP_SECRET`
-- `KIS_ACCOUNT` (`12345678-01` 형식)
+- `KIS_ACCOUNT` (`12345678` 또는 `12345678-01` 형식)
 - `KIS_ENV` (`paper` 또는 `live`)
 
 실행 예시:
 
 ```bash
 PYTHONPATH=src .venv/bin/python -m stockotter_small kis auth-test --ticker 005930
+PYTHONPATH=src .venv/bin/python -m stockotter_small kis price 005930
+PYTHONPATH=src .venv/bin/python -m stockotter_small kis positions
 ```
 
-출력에는 토큰 만료 시각과 무해한 시세 조회 호출 결과만 표시되며, 비밀값은 로그/출력에 노출하지 않습니다.
+`kis positions`는 계좌 요약(balance)과 보유 종목 목록(positions)을 함께 출력합니다.
+KIS 응답은 pydantic DTO(`KISPriceQuote`, `KISAccountBalance`, `KISPosition`)로 검증되며,
+인증 오류/호출 한도 초과는 각각 별도 에러 타입으로 매핑됩니다.
+비밀값은 로그/출력에 노출하지 않습니다.
 
 ## Config Notes
 

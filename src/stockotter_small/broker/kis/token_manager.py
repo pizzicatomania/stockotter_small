@@ -17,7 +17,8 @@ logger = logging.getLogger(__name__)
 _TOKEN_ENDPOINT = "/oauth2/tokenP"
 _DEFAULT_TIMEOUT_SECONDS = 10.0
 _DEFAULT_REFRESH_MARGIN_SECONDS = 60
-_ACCOUNT_PATTERN = re.compile(r"^\d{8}-\d{2}$")
+_ACCOUNT_PATTERN = re.compile(r"^\d{8}(-\d{2})?$")
+_DEFAULT_ACCOUNT_PRODUCT_CODE = "01"
 _KST = timezone(timedelta(hours=9))
 
 _KIS_BASE_URLS = {
@@ -76,7 +77,8 @@ class TokenManager:
         if not normalized_secret:
             raise ValueError("KIS_APP_SECRET must not be empty.")
         if not _ACCOUNT_PATTERN.fullmatch(normalized_account):
-            raise ValueError("KIS_ACCOUNT must match 8digits-2digits format.")
+            raise ValueError("KIS_ACCOUNT must match 8digits or 8digits-2digits format.")
+        cano, acnt_prdt_cd = split_kis_account(normalized_account)
 
         normalized_environment = environment.strip().lower()
         self.base_url = resolve_kis_base_url(normalized_environment)
@@ -88,7 +90,7 @@ class TokenManager:
 
         self.app_key = normalized_key
         self.app_secret = normalized_secret
-        self.account = normalized_account
+        self.account = f"{cano}-{acnt_prdt_cd}"
         self.environment = normalized_environment
         self.cache_path = cache_path or Path(
             f"data/cache/kis/token_{self.environment}.json"
@@ -170,16 +172,33 @@ class TokenManager:
         return f"Bearer {token.access_token}"
 
     def _fetch_new_token(self) -> KISToken:
-        response = self.session.post(
-            f"{self.base_url}{_TOKEN_ENDPOINT}",
-            json={
-                "grant_type": "client_credentials",
-                "appkey": self.app_key,
-                "appsecret": self.app_secret,
-            },
-            timeout=self.timeout_seconds,
-        )
-        response.raise_for_status()
+        try:
+            response = self.session.post(
+                f"{self.base_url}{_TOKEN_ENDPOINT}",
+                json={
+                    "grant_type": "client_credentials",
+                    "appkey": self.app_key,
+                    "appsecret": self.app_secret,
+                },
+                timeout=self.timeout_seconds,
+            )
+        except requests.RequestException as exc:
+            raise ValueError(
+                f"KIS token request failed network_error={exc.__class__.__name__}"
+            ) from exc
+        try:
+            response.raise_for_status()
+        except requests.HTTPError as exc:
+            status = response.status_code
+            payload = _parse_error_payload(response)
+            msg_cd = str(payload.get("msg_cd", "-")).strip() or "-"
+            msg = str(payload.get("msg1", "")).strip() or str(
+                payload.get("error_description", "")
+            ).strip()
+            detail = msg or "request failed"
+            raise ValueError(
+                f"KIS token request failed status={status} msg_cd={msg_cd} msg={detail}"
+            ) from exc
 
         payload = response.json()
         if not isinstance(payload, dict):
@@ -275,6 +294,28 @@ def resolve_kis_base_url(environment: str) -> str:
     return _KIS_BASE_URLS[normalized]
 
 
+def split_kis_account(account: str) -> tuple[str, str]:
+    normalized_account = account.strip()
+    if not normalized_account:
+        raise ValueError("KIS_ACCOUNT must not be empty.")
+
+    if "-" in normalized_account:
+        parts = normalized_account.split("-", maxsplit=1)
+        if len(parts) != 2:
+            raise ValueError("KIS_ACCOUNT must match 8digits or 8digits-2digits format.")
+        cano = parts[0].strip()
+        acnt_prdt_cd = parts[1].strip()
+    else:
+        cano = normalized_account
+        acnt_prdt_cd = _DEFAULT_ACCOUNT_PRODUCT_CODE
+
+    if len(cano) != 8 or not cano.isdigit():
+        raise ValueError("KIS_ACCOUNT must start with 8 digits.")
+    if len(acnt_prdt_cd) != 2 or not acnt_prdt_cd.isdigit():
+        raise ValueError("KIS account product code must be 2 digits.")
+    return cano, acnt_prdt_cd
+
+
 def _parse_iso_datetime(raw: str) -> datetime | None:
     try:
         parsed = datetime.fromisoformat(raw)
@@ -304,6 +345,16 @@ def _parse_kis_datetime(raw: str) -> datetime | None:
         except ValueError:
             continue
     return None
+
+
+def _parse_error_payload(response: requests.Response) -> dict[str, Any]:
+    try:
+        payload = response.json()
+    except ValueError:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    return payload
 
 
 def _utc_now() -> datetime:

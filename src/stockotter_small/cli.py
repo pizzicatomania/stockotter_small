@@ -9,7 +9,14 @@ from pathlib import Path
 import requests
 import typer
 
-from stockotter_small.broker.kis import KISClient
+from stockotter_small.broker.kis import (
+    KISAPIError,
+    KISAuthError,
+    KISClient,
+    KISClientError,
+    KISPosition,
+    KISRateLimitError,
+)
 from stockotter_v2 import load_config
 from stockotter_v2.clusterer import TfidfClusterer
 from stockotter_v2.llm import GeminiClient, LLMStructurer, evaluate_samples, load_eval_samples
@@ -62,11 +69,7 @@ def kis_auth_test(
     ),
 ) -> None:
     """Test KIS authentication and run a harmless quote endpoint call."""
-    try:
-        client = KISClient.from_env(cache_path=cache_path)
-    except ValueError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(code=1) from exc
+    client = _build_kis_client_or_exit(cache_path=cache_path)
 
     token = client.token_manager.get_token()
     typer.echo(
@@ -85,6 +88,17 @@ def kis_auth_test(
             typer.echo(f"harmless_call=skipped status={status} reason=endpoint_unavailable")
             return
         typer.echo(f"harmless_call=failed status={status}", err=True)
+        raise typer.Exit(code=1) from exc
+    except KISAPIError as exc:
+        if exc.status_code in {404, 405}:
+            typer.echo(
+                f"harmless_call=skipped status={exc.status_code} reason=endpoint_unavailable"
+            )
+            return
+        typer.echo(_format_kis_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except KISClientError as exc:
+        typer.echo(_format_kis_error(exc), err=True)
         raise typer.Exit(code=1) from exc
     except ValueError as exc:
         typer.echo(str(exc), err=True)
@@ -107,6 +121,63 @@ def kis_auth_test(
         f"name={result.stock_name or '-'} "
         f"price={result.current_price or '-'}"
     )
+
+
+@kis_app.command("price")
+def kis_price(
+    ticker: str = typer.Argument(..., help="조회할 종목코드 (예: 005930)."),
+    cache_path: Path | None = typer.Option(
+        None,
+        "--cache-path",
+        help="토큰 캐시 파일 경로 (기본값: data/cache/kis/token_<env>.json).",
+    ),
+) -> None:
+    """Get current price for a ticker via KIS quote API."""
+    client = _build_kis_client_or_exit(cache_path=cache_path)
+    try:
+        quote = client.get_price(ticker)
+    except (ValueError, KISClientError) as exc:
+        typer.echo(_format_kis_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(
+        "price "
+        f"ticker={quote.ticker} "
+        f"name={quote.name} "
+        f"current={quote.current_price} "
+        f"prev_close={quote.previous_close if quote.previous_close is not None else '-'} "
+        f"change={quote.change if quote.change is not None else '-'} "
+        f"change_rate={quote.change_rate if quote.change_rate is not None else '-'}"
+    )
+
+
+@kis_app.command("positions")
+def kis_positions(
+    cache_path: Path | None = typer.Option(
+        None,
+        "--cache-path",
+        help="토큰 캐시 파일 경로 (기본값: data/cache/kis/token_<env>.json).",
+    ),
+) -> None:
+    """Get account balance and holding positions via KIS account inquiry API."""
+    client = _build_kis_client_or_exit(cache_path=cache_path)
+    try:
+        balance = client.get_balance()
+        positions = client.get_positions()
+    except (KISClientError, ValueError) as exc:
+        typer.echo(_format_kis_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(
+        "balance "
+        f"purchase={balance.total_purchase_amount} "
+        f"eval={balance.total_eval_amount} "
+        f"pnl={balance.total_profit_loss_amount} "
+        f"pnl_rate={balance.total_profit_loss_rate} "
+        f"cash={balance.cash_available if balance.cash_available is not None else '-'}"
+    )
+
+    typer.echo(_render_positions_table(positions))
 
 
 @app.command("fetch-news")
@@ -774,6 +845,56 @@ def debug_storage(
         raise typer.Exit(code=1)
 
     typer.echo("storage ok")
+
+
+def _build_kis_client_or_exit(*, cache_path: Path | None) -> KISClient:
+    try:
+        return KISClient.from_env(cache_path=cache_path)
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+
+def _format_kis_error(exc: Exception) -> str:
+    if isinstance(exc, KISRateLimitError):
+        return f"kis_error=rate_limit detail={exc}"
+    if isinstance(exc, KISAuthError):
+        return f"kis_error=auth detail={exc}"
+    if isinstance(exc, KISClientError):
+        return f"kis_error=api detail={exc}"
+    return str(exc)
+
+
+def _render_positions_table(positions: list[KISPosition]) -> str:
+    if not positions:
+        return "positions=0"
+
+    headers = ("ticker", "name", "qty", "current", "pnl", "pnl_rate")
+    rows = [
+        (
+            position.ticker,
+            position.name,
+            str(position.quantity),
+            "-" if position.current_price is None else str(position.current_price),
+            "-" if position.profit_loss_amount is None else str(position.profit_loss_amount),
+            "-" if position.profit_loss_rate is None else str(position.profit_loss_rate),
+        )
+        for position in positions
+    ]
+    widths = [
+        max(len(headers[column]), *(len(row[column]) for row in rows))
+        for column in range(len(headers))
+    ]
+
+    def _line(values: tuple[str, str, str, str, str, str]) -> str:
+        return " | ".join(
+            value.ljust(widths[index]) for index, value in enumerate(values)
+        )
+
+    divider = "-+-".join("-" * width for width in widths)
+    body = [_line(headers), divider]
+    body.extend(_line(row) for row in rows)
+    return "\n".join(body)
 
 
 def _render_candidate_table(candidates: list[Candidate]) -> str:
