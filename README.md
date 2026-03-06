@@ -131,6 +131,25 @@ export GEMINI_API_KEY=...
 make e2e
 ```
 
+## KIS 인증 테스트
+
+`.env` 또는 셸 환경변수에 KIS 값을 설정한 뒤 토큰/인증 상태를 점검할 수 있습니다.
+
+필수 환경변수:
+
+- `KIS_APP_KEY`
+- `KIS_APP_SECRET`
+- `KIS_ACCOUNT` (`12345678-01` 형식)
+- `KIS_ENV` (`paper` 또는 `live`)
+
+실행 예시:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m stockotter_small kis auth-test --ticker 005930
+```
+
+출력에는 토큰 만료 시각과 무해한 시세 조회 호출 결과만 표시되며, 비밀값은 로그/출력에 노출하지 않습니다.
+
 ## Config Notes
 
 - `config/config.example.yaml`의 `sources`는 RSS 소스 리스트입니다.

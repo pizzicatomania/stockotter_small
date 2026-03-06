@@ -6,8 +6,10 @@ import logging
 from datetime import date
 from pathlib import Path
 
+import requests
 import typer
 
+from stockotter_small.broker.kis import KISClient
 from stockotter_v2 import load_config
 from stockotter_v2.clusterer import TfidfClusterer
 from stockotter_v2.llm import GeminiClient, LLMStructurer, evaluate_samples, load_eval_samples
@@ -32,9 +34,11 @@ app = typer.Typer(help="StockOtter Small CLI")
 debug_app = typer.Typer(help="Debug commands")
 universe_app = typer.Typer(help="Universe commands")
 paper_app = typer.Typer(help="Paper trading commands")
+kis_app = typer.Typer(help="KIS broker commands")
 app.add_typer(debug_app, name="debug")
 app.add_typer(universe_app, name="universe")
 app.add_typer(paper_app, name="paper")
+app.add_typer(kis_app, name="kis")
 
 
 @app.command()
@@ -42,6 +46,67 @@ def hello(name: str = typer.Option("world", "--name", "-n", help="Name to greet.
     """Simple smoke command."""
     logging.info("hello command invoked")
     typer.echo(f"hello, {name}")
+
+
+@kis_app.command("auth-test")
+def kis_auth_test(
+    ticker: str = typer.Option(
+        "005930",
+        "--ticker",
+        help="조회할 종목코드 (기본값: 005930).",
+    ),
+    cache_path: Path | None = typer.Option(
+        None,
+        "--cache-path",
+        help="토큰 캐시 파일 경로 (기본값: data/cache/kis/token_<env>.json).",
+    ),
+) -> None:
+    """Test KIS authentication and run a harmless quote endpoint call."""
+    try:
+        client = KISClient.from_env(cache_path=cache_path)
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    token = client.token_manager.get_token()
+    typer.echo(
+        "token "
+        f"env={client.environment} "
+        f"expires_at={token.expires_at.isoformat()} "
+        f"cache={client.cache_path}"
+    )
+
+    try:
+        result = client.auth_test_quote(ticker=ticker)
+    except requests.HTTPError as exc:
+        response = exc.response
+        status = response.status_code if response is not None else "unknown"
+        if status in {404, 405}:
+            typer.echo(f"harmless_call=skipped status={status} reason=endpoint_unavailable")
+            return
+        typer.echo(f"harmless_call=failed status={status}", err=True)
+        raise typer.Exit(code=1) from exc
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    if result.output_code not in {None, "0"}:
+        typer.echo(
+            "harmless_call=failed "
+            f"status={result.status_code} "
+            f"rt_cd={result.output_code} "
+            f"msg={result.output_message or '-'}",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    typer.echo(
+        "harmless_call=ok "
+        f"status={result.status_code} "
+        f"ticker={ticker} "
+        f"name={result.stock_name or '-'} "
+        f"price={result.current_price or '-'}"
+    )
 
 
 @app.command("fetch-news")
