@@ -189,6 +189,17 @@ class Repository:
 
         return [self._row_to_structured_event(row) for row in rows]
 
+    def list_structured_events_by_news_id(self, news_id: str) -> list[StructuredEvent]:
+        query = """
+        SELECT news_id, event_type, direction, confidence, horizon, themes, entities, risk_flags
+        FROM structured_events
+        WHERE news_id = ?
+        ORDER BY id DESC
+        """
+        with self._connect() as conn:
+            rows = conn.execute(query, (news_id,)).fetchall()
+        return [self._row_to_structured_event(row) for row in rows]
+
     def list_representative_structured_events_since_hours(
         self,
         *,

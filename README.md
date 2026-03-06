@@ -123,6 +123,8 @@ PYTHONPATH=src .venv/bin/python -m stockotter_small run --tickers-file data/seed
 ```
 
 위 커맨드는 표 형태로 결과를 stdout에 출력하고, JSON 리포트를 파일로 저장합니다.
+JSON 리포트의 각 candidate에는 `supporting_items`가 포함되며, 기사별 `raw_text_summary`와
+`llm_analysis`(event_type/direction/confidence/horizon/themes/risk_flags)를 확인할 수 있습니다.
 
 캐시/DB/기존 리포트를 지우고 E2E를 새로 실행하려면:
 

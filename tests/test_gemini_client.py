@@ -117,6 +117,28 @@ def test_gemini_client_does_not_fallback_on_non_quota_error() -> None:
     assert session.urls[0].endswith("/models/gemini-2.5-flash:generateContent")
 
 
+def test_gemini_client_fallbacks_on_429_even_without_quota_payload() -> None:
+    session = _FakeSession(
+        responses=[
+            _FakeResponse(status_code=429, payload={}),
+            _FakeResponse(status_code=200, payload=_ok_payload('{"ok": true}')),
+        ]
+    )
+    client = GeminiClient(
+        api_key="test-key",
+        model="gemini-2.5-flash",
+        fallback_model="gemini-2.5-flash-lite",
+        session=session,  # type: ignore[arg-type]
+    )
+
+    output = client.generate("hello")
+
+    assert output == '{"ok": true}'
+    assert len(session.urls) == 2
+    assert session.urls[0].endswith("/models/gemini-2.5-flash:generateContent")
+    assert session.urls[1].endswith("/models/gemini-2.5-flash-lite:generateContent")
+
+
 def test_gemini_client_without_fallback_model_raises_quota_error() -> None:
     session = _FakeSession(
         responses=[

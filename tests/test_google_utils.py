@@ -10,10 +10,10 @@ from stockotter_small.news.google_utils import (
 
 
 class _FakeResponse:
-    def __init__(self, *, url: str, status_code: int = 200) -> None:
+    def __init__(self, *, url: str, status_code: int = 200, text: str = "") -> None:
         self.url = url
         self.status_code = status_code
-        self.text = ""
+        self.text = text
 
     def raise_for_status(self) -> None:
         if self.status_code < 400:
@@ -24,15 +24,30 @@ class _FakeResponse:
 
 
 class _FakeSession:
-    def __init__(self, response: _FakeResponse | Exception) -> None:
+    def __init__(
+        self,
+        response: _FakeResponse | Exception,
+        *,
+        post_response: _FakeResponse | Exception | None = None,
+    ) -> None:
         self.response = response
+        self.post_response = post_response
         self.called_url: str | None = None
+        self.post_called_url: str | None = None
 
     def get(self, url: str, **_: object) -> _FakeResponse:
         self.called_url = url
         if isinstance(self.response, Exception):
             raise self.response
         return self.response
+
+    def post(self, url: str, **_: object) -> _FakeResponse:
+        self.post_called_url = url
+        if self.post_response is None:
+            raise RuntimeError("post response not configured")
+        if isinstance(self.post_response, Exception):
+            raise self.post_response
+        return self.post_response
 
 
 def test_remove_tracking_parameters_strips_known_keys() -> None:
@@ -74,6 +89,40 @@ def test_normalize_google_url_falls_back_to_original_on_failure() -> None:
         session=session,  # type: ignore[arg-type]
     )
     assert normalized == original
+
+
+def test_normalize_google_url_decodes_batch_redirect() -> None:
+    page_html = (
+        '<html><body>'
+        '<div jscontroller="aLI87" '
+        'data-n-a-id="article-id-123" '
+        'data-n-a-ts="1772785842" '
+        'data-n-a-sg="AZtoken"></div>'
+        "</body></html>"
+    )
+    batch_payload = (
+        ")]}'\n\n"
+        '[["wrb.fr","Fbv4je","[\\"garturlres\\",\\"https://example.com/news/1?utm_source=google&x=1\\",1]",null,null,null,"generic"]]'
+    )
+    session = _FakeSession(
+        _FakeResponse(
+            url="https://news.google.com/rss/articles/CBMiQWh0?oc=5&hl=en-US&gl=US&ceid=US:en",
+            text=page_html,
+        ),
+        post_response=_FakeResponse(
+            url="https://news.google.com/_/DotsSplashUi/data/batchexecute?rpcids=Fbv4je",
+            text=batch_payload,
+        ),
+    )
+
+    normalized = normalize_google_url(
+        "https://news.google.com/rss/articles/CBMiQWh0?oc=5",
+        session=session,  # type: ignore[arg-type]
+    )
+
+    assert normalized == "https://example.com/news/1?x=1"
+    assert session.post_called_url is not None
+    assert session.post_called_url.endswith("rpcids=Fbv4je")
 
 
 def test_dedupe_exact_by_normalized_title_drops_duplicates() -> None:

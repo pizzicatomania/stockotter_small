@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import re
 from collections.abc import Callable, Iterable
@@ -8,6 +9,7 @@ from typing import TypeVar
 from urllib.parse import parse_qsl, unquote, urlencode, urlsplit, urlunsplit
 
 import requests
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,9 @@ _TRACKING_PARAM_KEYS = {
     "spm",
 }
 _EMBEDDED_URL_KEYS = ("url", "u", "q")
+_BATCH_EXECUTE_URL = (
+    "https://news.google.com/_/DotsSplashUi/data/batchexecute?rpcids=Fbv4je"
+)
 
 
 def normalize_google_url(
@@ -144,9 +149,167 @@ def _resolve_google_redirect(
         logger.debug("google redirect resolution failed url=%s", url, exc_info=True)
         return None
 
+    if _is_http_url(response.url) and not _is_google_rss_article_url(response.url):
+        return response.url
+
+    decoded = _decode_google_article_url(
+        page_html=response.text,
+        referer_url=response.url,
+        session=requester,
+        timeout_seconds=timeout_seconds,
+    )
+    if decoded is not None:
+        return decoded
+
     if _is_http_url(response.url):
         return response.url
     return None
+
+
+def _decode_google_article_url(
+    *,
+    page_html: str,
+    referer_url: str,
+    session: requests.Session,
+    timeout_seconds: float,
+) -> str | None:
+    article_meta = _extract_google_article_meta(page_html)
+    if article_meta is None:
+        return None
+
+    article_id, article_ts, article_sig = article_meta
+    f_req_payload = _build_batch_request_payload(
+        article_id=article_id,
+        article_ts=article_ts,
+        article_sig=article_sig,
+    )
+
+    try:
+        response = session.post(
+            _BATCH_EXECUTE_URL,
+            data={"f.req": f_req_payload},
+            timeout=timeout_seconds,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+                "Referer": referer_url,
+                "User-Agent": "stockotter-small/0.1.0",
+            },
+        )
+        response.raise_for_status()
+    except Exception:
+        logger.debug("google batch decode failed referer=%s", referer_url, exc_info=True)
+        return None
+
+    return _parse_batch_execute_redirect(response.text)
+
+
+def _extract_google_article_meta(page_html: str) -> tuple[str, str, str] | None:
+    soup = BeautifulSoup(page_html, "html.parser")
+    node = soup.select_one(
+        'div[jscontroller="aLI87"][data-n-a-id][data-n-a-ts][data-n-a-sg]'
+    )
+    if node is None:
+        return None
+
+    article_id = str(node.get("data-n-a-id", "")).strip()
+    article_ts = str(node.get("data-n-a-ts", "")).strip()
+    article_sig = str(node.get("data-n-a-sg", "")).strip()
+    if not article_id or not article_ts or not article_sig:
+        return None
+    if not article_ts.isdigit():
+        return None
+
+    return article_id, article_ts, article_sig
+
+
+def _build_batch_request_payload(
+    *,
+    article_id: str,
+    article_ts: str,
+    article_sig: str,
+) -> str:
+    # Empirically stable payload for resolving Google News article redirection.
+    inner = [
+        "garturlreq",
+        [
+            [
+                "en-US",
+                "US",
+                ["FINANCE_TOP_INDICES", "WEB_TEST_1_0_0"],
+                None,
+                None,
+                1,
+                1,
+                "US:en",
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                False,
+            ],
+            "en-US",
+            "US",
+            1,
+            [2, 3, 4, 8],
+            1,
+            0,
+            "655000234",
+            0,
+            0,
+            None,
+            0,
+        ],
+        article_id,
+        int(article_ts),
+        article_sig,
+    ]
+    rpc = [["Fbv4je", json.dumps(inner, separators=(",", ":")), None, "generic"]]
+    return json.dumps([rpc], separators=(",", ":"))
+
+
+def _parse_batch_execute_redirect(payload: str) -> str | None:
+    for line in payload.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith(")]}'"):
+            continue
+        try:
+            rows = json.loads(stripped)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(rows, list):
+            continue
+
+        for row in rows:
+            if not isinstance(row, list) or len(row) < 3:
+                continue
+            if row[0] != "wrb.fr":
+                continue
+            raw_result = row[2]
+            if not isinstance(raw_result, str) or "garturlres" not in raw_result:
+                continue
+            try:
+                parsed = json.loads(raw_result)
+            except json.JSONDecodeError:
+                continue
+            if (
+                isinstance(parsed, list)
+                and len(parsed) >= 2
+                and parsed[0] == "garturlres"
+                and isinstance(parsed[1], str)
+                and _is_http_url(parsed[1])
+            ):
+                return parsed[1]
+    return None
+
+
+def _is_google_rss_article_url(url: str) -> bool:
+    parsed = urlsplit(url)
+    return parsed.netloc.lower().endswith("news.google.com") and parsed.path.startswith(
+        "/rss/articles/"
+    )
 
 
 def _is_http_url(value: str) -> bool:

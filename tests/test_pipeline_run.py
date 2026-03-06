@@ -160,6 +160,10 @@ def test_cli_run_pipeline_e2e_smoke_with_mocks(monkeypatch, tmp_path) -> None:
         "005930",
     ]
     assert len(payload["candidates"][0]["headlines"]) == 1
+    first_supporting = payload["candidates"][0]["supporting_items"][0]
+    assert first_supporting["raw_text_summary"]
+    assert first_supporting["llm_analysis"]["event_type"] == "demand"
+    assert first_supporting["llm_analysis"]["direction"] == "positive"
 
 
 def test_cli_run_pipeline_skips_stages_when_data_exists(monkeypatch, tmp_path) -> None:

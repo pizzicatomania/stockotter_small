@@ -7,6 +7,7 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from difflib import SequenceMatcher
 from pathlib import Path
 from urllib.parse import quote_plus
 
@@ -31,6 +32,7 @@ from .parser import (
 logger = logging.getLogger(__name__)
 
 SUMMARY_ONLY_PREFIX = "[summary_only] "
+_NON_WORD_PATTERN = re.compile(r"[\W_]+")
 
 
 @dataclass(slots=True)
@@ -332,9 +334,17 @@ class NaverNewsFetcher:
         tickers: list[str],
         canonical_url: str,
     ) -> NewsItem:
-        raw_text = entry.summary.strip() if entry.summary.strip() else ""
+        summary_text = entry.summary.strip()
+        raw_text = summary_text
+
+        if self._is_title_like_summary(title=entry.title, summary=summary_text):
+            extracted = self._extract_rss_article_text(canonical_url=canonical_url)
+            if extracted:
+                raw_text = extracted
+
         if not raw_text:
-            raw_text = f"{SUMMARY_ONLY_PREFIX}{entry.title}"
+            fallback = summary_text or entry.title
+            raw_text = f"{SUMMARY_ONLY_PREFIX}{fallback}"
 
         return NewsItem(
             id=self._news_id(canonical_url, prefix=source_name or "rss"),
@@ -345,6 +355,41 @@ class NaverNewsFetcher:
             raw_text=raw_text,
             tickers_mentioned=sorted(set(tickers)),
         )
+
+    def _extract_rss_article_text(self, *, canonical_url: str) -> str:
+        if not canonical_url:
+            return ""
+        try:
+            article_html = self._fetch_text(canonical_url)
+        except Exception:
+            logger.exception("failed to fetch rss article url=%s", canonical_url)
+            return ""
+
+        raw_text = extract_article_raw_text(article_html)
+        if raw_text:
+            return raw_text
+        summary = extract_article_summary(article_html)
+        if summary:
+            return f"{SUMMARY_ONLY_PREFIX}{summary}"
+        return ""
+
+    @staticmethod
+    def _is_title_like_summary(*, title: str, summary: str) -> bool:
+        normalized_title = _normalize_compare_text(title)
+        normalized_summary = _normalize_compare_text(summary)
+        if not normalized_summary:
+            return True
+        if normalized_summary == normalized_title:
+            return True
+        if normalized_title and (
+            normalized_summary.startswith(normalized_title)
+            or normalized_title.startswith(normalized_summary)
+        ):
+            return True
+        if not normalized_title:
+            return False
+        similarity = SequenceMatcher(a=normalized_title, b=normalized_summary).ratio()
+        return similarity >= 0.88
 
     def _extract_tickers_from_entry(
         self,
@@ -473,3 +518,7 @@ class NaverNewsFetcher:
             normalized_prefix = "rss"
         digest = hashlib.sha1(url.encode("utf-8")).hexdigest()
         return f"{normalized_prefix}-{digest[:16]}"
+
+
+def _normalize_compare_text(text: str) -> str:
+    return _NON_WORD_PATTERN.sub("", text.casefold())

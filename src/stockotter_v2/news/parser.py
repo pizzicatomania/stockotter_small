@@ -98,7 +98,7 @@ def parse_rss_feed(xml: str, *, default_source: str) -> list[ParsedRssEntry]:
             published_at = _parse_rss_published_at(
                 _first_child_text(item, ["pubDate", "published", "updated", "date"])
             )
-            summary = _normalize_text(
+            summary = _normalize_summary_text(
                 _first_child_text(item, ["description", "summary", "content", "encoded"])
                 or title
             )
@@ -122,7 +122,7 @@ def parse_rss_feed(xml: str, *, default_source: str) -> list[ParsedRssEntry]:
         published_at = _parse_rss_published_at(
             _first_child_text(entry, ["published", "updated", "date"])
         )
-        summary = _normalize_text(
+        summary = _normalize_summary_text(
             _first_child_text(entry, ["summary", "content"])
             or title
         )
@@ -236,6 +236,16 @@ def _extract_atom_link(node: ElementTree.Element) -> str:
 
 def _normalize_text(text: str) -> str:
     return _WHITESPACE_PATTERN.sub(" ", text).strip()
+
+
+def _normalize_summary_text(text: str) -> str:
+    normalized = _normalize_text(text)
+    if not normalized:
+        return ""
+
+    # RSS description may contain HTML fragments or escaped tags; strip markup.
+    plain = _normalize_text(BeautifulSoup(normalized, "html.parser").get_text(" ", strip=True))
+    return plain or normalized
 
 
 def _find_elements_by_local_name(

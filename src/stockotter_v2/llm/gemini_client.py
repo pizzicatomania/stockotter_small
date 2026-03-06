@@ -109,6 +109,9 @@ class GeminiClient:
 
         if response.status_code not in _QUOTA_STATUS_CODES:
             return False
+        if response.status_code == 429:
+            # 429 is always a quota/rate-limit class signal for this endpoint.
+            return True
 
         error_payload = self._extract_error_payload(response=response)
         status = str(error_payload.get("status", "")).upper()

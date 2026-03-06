@@ -6,11 +6,13 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from time import perf_counter
 
+from bs4 import BeautifulSoup
+
 from stockotter_small.news.google_utils import dedupe_exact_by_normalized_title
 from stockotter_v2.clusterer import TfidfClusterer
 from stockotter_v2.llm import LLMStructurer
 from stockotter_v2.news.naver_fetcher import NaverNewsFetcher
-from stockotter_v2.schemas import Candidate, NewsItem, now_in_seoul
+from stockotter_v2.schemas import Candidate, NewsItem, StructuredEvent, now_in_seoul
 from stockotter_v2.scoring import RuleBasedScorer
 from stockotter_v2.storage import Repository
 
@@ -38,6 +40,28 @@ class CandidateReportRow:
     themes: list[str]
     risk_flags: list[str]
     headlines: list[str]
+    supporting_items: list[SupportingItemReport]
+
+
+@dataclass(slots=True, frozen=True)
+class StructuredEventReport:
+    event_type: str
+    direction: str
+    confidence: float
+    horizon: str
+    themes: list[str]
+    entities: list[str]
+    risk_flags: list[str]
+
+
+@dataclass(slots=True, frozen=True)
+class SupportingItemReport:
+    news_id: str
+    title: str
+    url: str
+    published_at: str
+    raw_text_summary: str
+    llm_analysis: StructuredEventReport | None
 
 
 @dataclass(slots=True, frozen=True)
@@ -430,6 +454,7 @@ def _build_report_rows(
                 themes=list(candidate.themes),
                 risk_flags=list(candidate.risk_flags),
                 headlines=headlines,
+                supporting_items=_load_supporting_items(repo=repo, candidate=candidate),
             )
         )
     return rows
@@ -450,6 +475,55 @@ def _load_headlines(*, repo: Repository, candidate: Candidate) -> list[str]:
         if len(headlines) >= 2:
             break
     return headlines
+
+
+def _load_supporting_items(
+    *,
+    repo: Repository,
+    candidate: Candidate,
+) -> list[SupportingItemReport]:
+    supporting_items: list[SupportingItemReport] = []
+    for news_id in candidate.supporting_news_ids:
+        item = repo.get_news_item(news_id)
+        if item is None:
+            continue
+
+        events = repo.list_structured_events_by_news_id(news_id)
+        analysis: StructuredEventReport | None = None
+        if events:
+            analysis = _to_structured_event_report(events[0])
+
+        supporting_items.append(
+            SupportingItemReport(
+                news_id=item.id,
+                title=" ".join(item.title.split()),
+                url=item.url,
+                published_at=item.published_at.isoformat(),
+                raw_text_summary=_summarize_raw_text(item.raw_text),
+                llm_analysis=analysis,
+            )
+        )
+    return supporting_items
+
+
+def _to_structured_event_report(event: StructuredEvent) -> StructuredEventReport:
+    return StructuredEventReport(
+        event_type=event.event_type.value,
+        direction=event.direction.value,
+        confidence=event.confidence,
+        horizon=event.horizon.value,
+        themes=list(event.themes),
+        entities=list(event.entities),
+        risk_flags=list(event.risk_flags),
+    )
+
+
+def _summarize_raw_text(raw_text: str, *, limit: int = 180) -> str:
+    cleaned = BeautifulSoup(raw_text, "html.parser").get_text(" ", strip=True)
+    normalized = " ".join(cleaned.replace("[summary_only]", " ").split())
+    if len(normalized) <= limit:
+        return normalized
+    return f"{normalized[: limit - 3]}..."
 
 
 def _write_json_report(

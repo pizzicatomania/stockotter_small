@@ -60,3 +60,25 @@ def test_parse_rss_feed_extracts_required_fields() -> None:
     assert items[1].title == "SK하이닉스(000660) 관련 기사"
     assert items[1].url == "https://example.com/news/000660-1"
     assert items[1].source == "google_news"
+
+
+def test_parse_rss_feed_strips_html_from_summary() -> None:
+    xml = """
+    <rss>
+      <channel>
+        <item>
+          <title>테스트 기사</title>
+          <link>https://example.com/news/1</link>
+          <pubDate>Fri, 28 Feb 2026 01:15:00 +0000</pubDate>
+          <description><![CDATA[
+            <a href="https://news.google.com">기사 링크</a>&nbsp;요약 본문
+          ]]></description>
+        </item>
+      </channel>
+    </rss>
+    """
+
+    items = parse_rss_feed(xml, default_source="google_news")
+
+    assert len(items) == 1
+    assert items[0].summary == "기사 링크 요약 본문"
