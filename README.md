@@ -131,23 +131,44 @@ Telegram morning briefing 전송:
 ```bash
 export TELEGRAM_BOT_TOKEN=...
 export TELEGRAM_CHAT_ID=...
-PYTHONPATH=src .venv/bin/python -m stockotter_small tg send-briefing --asof 2026-03-08
+PYTHONPATH=src .venv/bin/python -m stockotter_small tg send-briefing --asof 2026-03-08 --config config/config.example.yaml
 ```
 
 Telegram 메시지는 현재 DB의 최신 candidate snapshot 날짜가 `--asof`와 일치할 때만 전송하며,
 후보별 ticker, score, 대표 headline 1-2개만 고정 포맷으로 보냅니다.
 각 후보에는 inline button `[BUY] [SELL] [SKIP]`가 함께 붙으며,
 callback_data에는 짧은 action id만 넣고 실제 payload는 SQLite `tg_actions`에 저장합니다.
+`trading.telegram_default_buy_cash_amount`와 `trading.telegram_default_sell_quantity`가
+Telegram 액션 payload 기본값으로 저장됩니다.
 토큰/채팅 ID는 로그나 에러 메시지에 출력하지 않습니다.
 
 Telegram callback 처리:
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m stockotter_small tg handle-callback --update-json data/telegram_callback.json
+PYTHONPATH=src .venv/bin/python -m stockotter_small tg handle-callback --update-json data/telegram_callback.json --config config/config.example.yaml
 ```
 
-callback 처리 시 `answerCallbackQuery`를 먼저 호출하고, action 상태를 `ACKED`로 바꾼 뒤
-`BUY`/`SELL`은 SQLite `order_intents`에 dry-run intent만 기록합니다.
+callback 처리 시 `answerCallbackQuery`를 먼저 호출합니다.
+`BUY`/`SELL`은 기본적으로 2단계 확인으로 동작하며, 첫 클릭 시 원본 메시지를
+`Confirm BUY?` 또는 `Confirm SELL?` 상태로 수정하고 second-step button을 붙입니다.
+실제 주문은 confirm button을 눌렀을 때만 시도하며, 결과는 SQLite `orders`,
+`tg_actions`, `order_intents`에 함께 반영되고 원본 Telegram 메시지도 상태에 맞게 수정됩니다.
+`trading.telegram_paper_one_step_enabled=true`이면 `KIS_ENV=paper`에서만 1단계 실행을 허용합니다.
+`KIS_ENV=live`에서는 `tg handle-callback --live`가 없으면 기존 live 안전 게이트 때문에 주문이 거절됩니다.
+
+Telegram callback을 실제로 안정적으로 처리하려면 버튼을 누르기 전에 long-poll 리스너를 띄워두는 편이 안전합니다.
+
+```bash
+KIS_ENV=paper PYTHONPATH=src .venv/bin/python -m stockotter_small tg poll-callbacks \
+  --db-path data/storage/stockotter.db \
+  --config config/config.yaml \
+  --offset-file data/cache/telegram/offset.txt
+```
+
+이 명령은 `getUpdates` long-poll로 `callback_query`를 즉시 받아 `answerCallbackQuery`를 바로 호출합니다.
+`--once`를 주면 한 번의 poll batch만 처리하고 종료합니다.
+실주문 테스트 시에는 리스너를 켠 상태에서 Telegram에서 `BUY -> CONFIRM BUY` 또는
+`SELL -> CONFIRM SELL` 순서로 누르면 됩니다.
 
 캐시/DB/기존 리포트를 지우고 E2E를 새로 실행하려면:
 

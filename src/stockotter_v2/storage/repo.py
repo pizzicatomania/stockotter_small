@@ -342,6 +342,7 @@ class Repository:
             action.ticker,
             action.quantity,
             action.cash_amount,
+            action.parent_action_id,
             action.created_at.isoformat(),
             action.status.value,
             action.message_id,
@@ -349,10 +350,20 @@ class Repository:
         )
         query = """
         INSERT INTO tg_actions (
-            action_id, action_type, ticker, quantity, cash_amount,
+            action_id, action_type, ticker, quantity, cash_amount, parent_action_id,
             created_at, status, message_id, callback_query_id
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(action_id) DO UPDATE SET
+            action_type=excluded.action_type,
+            ticker=excluded.ticker,
+            quantity=excluded.quantity,
+            cash_amount=excluded.cash_amount,
+            parent_action_id=excluded.parent_action_id,
+            created_at=excluded.created_at,
+            status=excluded.status,
+            message_id=excluded.message_id,
+            callback_query_id=excluded.callback_query_id
         """
         with self._connect() as conn:
             conn.execute(query, payload)
@@ -360,7 +371,7 @@ class Repository:
     def get_tg_action(self, action_id: str) -> TelegramAction | None:
         query = """
         SELECT
-            action_id, action_type, ticker, quantity, cash_amount,
+            action_id, action_type, ticker, quantity, cash_amount, parent_action_id,
             created_at, status, message_id, callback_query_id
         FROM tg_actions
         WHERE action_id = ?
@@ -375,7 +386,7 @@ class Repository:
     def list_tg_actions(self, limit: int | None = None) -> list[TelegramAction]:
         query = """
         SELECT
-            action_id, action_type, ticker, quantity, cash_amount,
+            action_id, action_type, ticker, quantity, cash_amount, parent_action_id,
             created_at, status, message_id, callback_query_id
         FROM tg_actions
         ORDER BY created_at DESC, action_id DESC
@@ -389,26 +400,35 @@ class Repository:
             rows = conn.execute(query, params).fetchall()
         return [self._row_to_tg_action(row) for row in rows]
 
-    def update_tg_action_ack(
+    def list_tg_child_actions(self, parent_action_id: str) -> list[TelegramAction]:
+        query = """
+        SELECT
+            action_id, action_type, ticker, quantity, cash_amount, parent_action_id,
+            created_at, status, message_id, callback_query_id
+        FROM tg_actions
+        WHERE parent_action_id = ?
+        ORDER BY created_at ASC, action_id ASC
+        """
+        with self._connect() as conn:
+            rows = conn.execute(query, (parent_action_id,)).fetchall()
+        return [self._row_to_tg_action(row) for row in rows]
+
+    def update_tg_action_status(
         self,
         *,
         action_id: str,
-        callback_query_id: str,
+        status: TelegramActionStatus,
+        callback_query_id: str | None = None,
     ) -> None:
-        query = """
-        UPDATE tg_actions
-        SET status = ?, callback_query_id = ?
-        WHERE action_id = ?
-        """
+        params: list[object] = [status.value]
+        query = "UPDATE tg_actions SET status = ?"
+        if callback_query_id is not None:
+            query += ", callback_query_id = ?"
+            params.append(callback_query_id)
+        query += " WHERE action_id = ?"
+        params.append(action_id)
         with self._connect() as conn:
-            conn.execute(
-                query,
-                (
-                    TelegramActionStatus.ACKED.value,
-                    callback_query_id,
-                    action_id,
-                ),
-            )
+            conn.execute(query, tuple(params))
 
     def insert_order_intent(self, intent: OrderIntent) -> None:
         payload = (
@@ -429,9 +449,40 @@ class Repository:
             is_dry_run, status, note, created_at
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(action_id) DO UPDATE SET
+            intent_id=excluded.intent_id,
+            action_type=excluded.action_type,
+            ticker=excluded.ticker,
+            quantity=excluded.quantity,
+            cash_amount=excluded.cash_amount,
+            is_dry_run=excluded.is_dry_run,
+            status=excluded.status,
+            note=excluded.note,
+            created_at=excluded.created_at
         """
         with self._connect() as conn:
             conn.execute(query, payload)
+
+    def update_order_intent(
+        self,
+        *,
+        action_id: str,
+        status: OrderIntentStatus,
+        is_dry_run: bool | None = None,
+        note: str | None = None,
+    ) -> None:
+        params: list[object] = [status.value]
+        query = "UPDATE order_intents SET status = ?"
+        if is_dry_run is not None:
+            query += ", is_dry_run = ?"
+            params.append(int(is_dry_run))
+        if note is not None:
+            query += ", note = ?"
+            params.append(note)
+        query += " WHERE action_id = ?"
+        params.append(action_id)
+        with self._connect() as conn:
+            conn.execute(query, tuple(params))
 
     def get_order_intent_by_action(self, action_id: str) -> OrderIntent | None:
         query = """
@@ -717,6 +768,15 @@ class Repository:
         schema = schema_path.read_text(encoding="utf-8")
         with self._connect() as conn:
             conn.executescript(schema)
+            self._apply_compat_migrations(conn)
+
+    @staticmethod
+    def _apply_compat_migrations(conn: sqlite3.Connection) -> None:
+        tg_action_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(tg_actions)").fetchall()
+        }
+        if "parent_action_id" not in tg_action_columns:
+            conn.execute("ALTER TABLE tg_actions ADD COLUMN parent_action_id TEXT")
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
@@ -778,6 +838,7 @@ class Repository:
             ticker=row["ticker"],
             quantity=row["quantity"],
             cash_amount=row["cash_amount"],
+            parent_action_id=row["parent_action_id"],
             created_at=row["created_at"],
             status=TelegramActionStatus(row["status"]),
             message_id=row["message_id"],

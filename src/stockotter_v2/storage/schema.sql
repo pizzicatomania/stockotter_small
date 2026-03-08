@@ -113,6 +113,7 @@ CREATE TABLE IF NOT EXISTS tg_actions (
     ticker TEXT NOT NULL,
     quantity INTEGER,
     cash_amount INTEGER,
+    parent_action_id TEXT,
     created_at TEXT NOT NULL,
     status TEXT NOT NULL,
     message_id INTEGER,

@@ -3,6 +3,8 @@ from __future__ import annotations
 import csv
 import json
 import logging
+import os
+import time
 from datetime import date
 from pathlib import Path
 
@@ -19,10 +21,12 @@ from stockotter_small.broker.kis import (
     OrderService,
 )
 from stockotter_small.telegram import (
+    CallbackExecutionRequest,
     TelegramClient,
     TelegramClientError,
     build_briefing_candidates,
     build_inline_keyboard_and_actions,
+    finalize_callback_execution,
     format_briefing_message,
     parse_callback_update,
     persist_tg_actions,
@@ -30,6 +34,7 @@ from stockotter_small.telegram import (
 )
 from stockotter_v2 import load_config
 from stockotter_v2.clusterer import TfidfClusterer
+from stockotter_v2.config import TradingConfig
 from stockotter_v2.llm import GeminiClient, LLMStructurer, evaluate_samples, load_eval_samples
 from stockotter_v2.news.naver_fetcher import NaverNewsFetcher
 from stockotter_v2.paper import apply_eod_rules, create_entry_position
@@ -444,9 +449,7 @@ def fetch_news(
         except Exception:
             logging.exception("failed to upsert news url=%s", item.url)
 
-    summary_only_count = sum(
-        1 for item in items if item.raw_text.startswith("[summary_only] ")
-    )
+    summary_only_count = sum(1 for item in items if item.raw_text.startswith("[summary_only] "))
     typer.echo(
         "stored "
         f"{stored} items "
@@ -511,9 +514,7 @@ def llm_structure(
         max_retries=config.llm.max_retries,
     )
     stats = structurer.run_since_hours(since_hours)
-    typer.echo(
-        f"processed={stats.processed} failed={stats.failed} skipped={stats.skipped}"
-    )
+    typer.echo(f"processed={stats.processed} failed={stats.failed} skipped={stats.skipped}")
 
 
 @app.command("llm-eval")
@@ -890,6 +891,14 @@ def tg_send_briefing(
         "--db-path",
         help="SQLite DB file path.",
     ),
+    config_path: Path = typer.Option(
+        Path("config/config.example.yaml"),
+        "--config",
+        help="Config file path.",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+    ),
 ) -> None:
     """Send the latest candidate briefing to Telegram."""
     repo = Repository(db_path)
@@ -900,9 +909,14 @@ def tg_send_briefing(
         raise typer.Exit(code=1) from exc
 
     try:
+        config = load_config(config_path)
         briefing_candidates = build_briefing_candidates(repo=repo, asof=asof_date, limit=top)
         message = format_briefing_message(asof=asof_date, candidates=briefing_candidates)
-        reply_markup, actions = build_inline_keyboard_and_actions(candidates=briefing_candidates)
+        reply_markup, actions = build_inline_keyboard_and_actions(
+            candidates=briefing_candidates,
+            buy_cash_amount=config.trading.telegram_default_buy_cash_amount,
+            sell_quantity=config.trading.telegram_default_sell_quantity,
+        )
         client = TelegramClient.from_env()
         result = client.send_message(message, reply_markup=reply_markup)
         persist_tg_actions(repo=repo, actions=actions, message_id=result.message_id)
@@ -933,42 +947,137 @@ def tg_handle_callback(
         "--db-path",
         help="SQLite DB file path.",
     ),
+    config_path: Path = typer.Option(
+        Path("config/config.example.yaml"),
+        "--config",
+        help="Config file path.",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+    ),
+    cache_path: Path | None = typer.Option(
+        None,
+        "--cache-path",
+        help="KIS token cache file path.",
+    ),
+    live: bool = typer.Option(False, "--live", help="live 환경 실주문 실행을 허용합니다."),
 ) -> None:
     """Handle Telegram inline-button callback payload."""
     raw_payload = update_json.read_text(encoding="utf-8")
     try:
-        envelope = parse_callback_update(raw_payload)
-    except ValueError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(code=1) from exc
-
-    client = TelegramClient.from_env()
-    try:
-        client.answer_callback_query(envelope.callback_query_id)
-    except (TelegramClientError, ValueError) as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(code=1) from exc
-
-    repo = Repository(db_path)
-    try:
-        result = process_callback_action(
-            repo=repo,
-            action_id=envelope.action_id,
-            callback_query_id=envelope.callback_query_id,
+        client = TelegramClient.from_env()
+        summary = _handle_telegram_callback_raw_payload(
+            raw_payload=raw_payload,
+            client=client,
+            db_path=db_path,
+            config_path=config_path,
+            cache_path=cache_path,
+            allow_live=live,
         )
-    except ValueError as exc:
-        typer.echo(str(exc), err=True)
+    except (TelegramClientError, KISClientError, ValueError) as exc:
+        typer.echo(_format_telegram_callback_error(exc), err=True)
         raise typer.Exit(code=1) from exc
+    typer.echo(summary)
 
+
+@tg_app.command("poll-callbacks")
+def tg_poll_callbacks(
+    db_path: Path = typer.Option(
+        Path("data/storage/stockotter.db"),
+        "--db-path",
+        help="SQLite DB file path.",
+    ),
+    config_path: Path = typer.Option(
+        Path("config/config.example.yaml"),
+        "--config",
+        help="Config file path.",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+    ),
+    cache_path: Path | None = typer.Option(
+        None,
+        "--cache-path",
+        help="KIS token cache file path.",
+    ),
+    live: bool = typer.Option(False, "--live", help="live 환경 실주문 실행을 허용합니다."),
+    offset_file: Path = typer.Option(
+        Path("data/cache/telegram/offset.txt"),
+        "--offset-file",
+        help="Telegram getUpdates offset state file.",
+    ),
+    poll_timeout: int = typer.Option(
+        20,
+        "--poll-timeout",
+        min=0,
+        help="Telegram getUpdates long-poll timeout seconds.",
+    ),
+    idle_sleep_seconds: float = typer.Option(
+        1.0,
+        "--idle-sleep-seconds",
+        min=0.0,
+        help="Sleep seconds after a poll error before retrying.",
+    ),
+    once: bool = typer.Option(
+        False,
+        "--once",
+        help="Process at most one poll batch and exit.",
+    ),
+) -> None:
+    """Continuously poll Telegram callback updates and process them immediately."""
+    client = TelegramClient.from_env()
+    offset = _load_telegram_offset(offset_file)
     typer.echo(
-        "telegram callback "
-        f"action_id={result.action.action_id} "
-        f"type={result.action.action_type.value} "
-        f"ticker={result.action.ticker} "
-        f"status={result.action.status.value} "
-        "order_intent_id="
-        f"{result.created_intent.intent_id if result.created_intent is not None else '-'}"
+        "telegram polling "
+        f"offset={offset if offset is not None else '-'} "
+        f"timeout={poll_timeout} "
+        f"offset_file={offset_file}"
     )
+
+    while True:
+        try:
+            result = client.get_updates(
+                offset=offset,
+                timeout=poll_timeout,
+                allowed_updates=["callback_query"],
+            )
+        except (TelegramClientError, ValueError) as exc:
+            typer.echo(_format_telegram_callback_error(exc), err=True)
+            if once:
+                raise typer.Exit(code=1) from exc
+            time.sleep(idle_sleep_seconds)
+            continue
+
+        if not result.updates:
+            if once:
+                typer.echo("telegram polling no_updates")
+                return
+            continue
+
+        for update in result.updates:
+            update_id = _extract_update_id(update)
+            raw_payload = json.dumps(update, ensure_ascii=False)
+            try:
+                summary = _handle_telegram_callback_raw_payload(
+                    raw_payload=raw_payload,
+                    client=client,
+                    db_path=db_path,
+                    config_path=config_path,
+                    cache_path=cache_path,
+                    allow_live=live,
+                )
+                typer.echo(f"update_id={update_id} {summary}")
+            except (TelegramClientError, KISClientError, ValueError) as exc:
+                typer.echo(
+                    f"update_id={update_id} {_format_telegram_callback_error(exc)}",
+                    err=True,
+                )
+            finally:
+                offset = update_id + 1
+                _save_telegram_offset(offset_file, offset)
+
+        if once:
+            return
 
 
 @paper_app.command("step")
@@ -1139,12 +1248,131 @@ def debug_storage(
     typer.echo("storage ok")
 
 
+def _handle_telegram_callback_raw_payload(
+    *,
+    raw_payload: str,
+    client: TelegramClient,
+    db_path: Path,
+    config_path: Path,
+    cache_path: Path | None,
+    allow_live: bool,
+) -> str:
+    envelope = parse_callback_update(raw_payload)
+    client.answer_callback_query(envelope.callback_query_id)
+
+    repo = Repository(db_path)
+    try:
+        config = load_config(config_path)
+        result = process_callback_action(
+            repo=repo,
+            action_id=envelope.action_id,
+            callback_query_id=envelope.callback_query_id,
+            message_id=envelope.message_id,
+            message_text=envelope.message_text,
+            environment=_resolve_kis_environment(),
+            paper_one_step_enabled=config.trading.telegram_paper_one_step_enabled,
+            default_buy_cash_amount=config.trading.telegram_default_buy_cash_amount,
+            default_sell_quantity=config.trading.telegram_default_sell_quantity,
+        )
+        if result.execution_request is not None:
+            final_result = _execute_telegram_callback_order(
+                execution_request=result.execution_request,
+                cache_path=cache_path,
+                db_path=db_path,
+                config=config,
+                repo=repo,
+                message_text=result.message_text,
+                allow_live=allow_live,
+            )
+            client.edit_message_text(
+                message_id=envelope.message_id,
+                text=final_result.message_text,
+                reply_markup=final_result.reply_markup,
+            )
+            return (
+                "telegram callback "
+                f"action_id={final_result.action.action_id} "
+                f"type={final_result.action.action_type.value} "
+                f"ticker={final_result.action.ticker} "
+                f"status={final_result.action.status.value} "
+                "order_id="
+                f"{final_result.order.order_id if final_result.order is not None else '-'}"
+            )
+
+        client.edit_message_text(
+            message_id=envelope.message_id,
+            text=result.message_text,
+            reply_markup=result.reply_markup,
+        )
+        return (
+            "telegram callback "
+            f"action_id={result.action.action_id} "
+            f"type={result.action.action_type.value} "
+            f"ticker={result.action.ticker} "
+            f"status={result.action.status.value} "
+            "order_intent_id="
+            f"{result.intent.intent_id if result.intent is not None else '-'}"
+        )
+    except (TelegramClientError, KISClientError, ValueError) as exc:
+        _try_edit_callback_error_message(
+            client=client,
+            envelope=envelope,
+            repo=repo,
+            error_message=_format_telegram_callback_error(exc),
+        )
+        raise
+
+
+def _load_telegram_offset(offset_file: Path) -> int | None:
+    if not offset_file.exists():
+        return None
+    raw_value = offset_file.read_text(encoding="utf-8").strip()
+    if not raw_value:
+        return None
+    try:
+        offset = int(raw_value)
+    except ValueError as exc:
+        raise ValueError(f"invalid telegram offset file: {offset_file}") from exc
+    if offset < 0:
+        raise ValueError(f"invalid telegram offset file: {offset_file}")
+    return offset
+
+
+def _save_telegram_offset(offset_file: Path, offset: int) -> None:
+    if offset < 0:
+        raise ValueError("offset must be >= 0")
+    offset_file.parent.mkdir(parents=True, exist_ok=True)
+    offset_file.write_text(f"{offset}\n", encoding="utf-8")
+
+
+def _extract_update_id(update: dict[str, object]) -> int:
+    raw_update_id = update.get("update_id")
+    if not isinstance(raw_update_id, int):
+        raise ValueError("telegram update missing integer update_id")
+    if raw_update_id < 0:
+        raise ValueError("telegram update_id must be >= 0")
+    return raw_update_id
+
+
 def _build_kis_client_or_exit(*, cache_path: Path | None) -> KISClient:
     try:
         return KISClient.from_env(cache_path=cache_path)
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
+
+
+def _build_order_service(
+    *,
+    db_path: Path,
+    cache_path: Path | None,
+    trading_config: TradingConfig,
+) -> OrderService:
+    return OrderService.from_env(
+        db_path=db_path,
+        cache_path=cache_path,
+        trading_config=trading_config,
+    )
 
 
 def _build_order_service_or_exit(
@@ -1155,7 +1383,7 @@ def _build_order_service_or_exit(
 ) -> OrderService:
     try:
         config = load_config(config_path)
-        return OrderService.from_env(
+        return _build_order_service(
             db_path=db_path,
             cache_path=cache_path,
             trading_config=config.trading,
@@ -1163,6 +1391,96 @@ def _build_order_service_or_exit(
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
+
+
+def _execute_telegram_callback_order(
+    *,
+    execution_request: CallbackExecutionRequest,
+    cache_path: Path | None,
+    db_path: Path,
+    config: object,
+    repo: Repository,
+    message_text: str,
+    allow_live: bool,
+):
+    try:
+        service = _build_order_service(
+            db_path=db_path,
+            cache_path=cache_path,
+            trading_config=config.trading,
+        )
+        parent_action = execution_request.parent_action
+        if parent_action.action_type.value == "buy":
+            cash_amount = execution_request.intent.cash_amount
+            if cash_amount is None:
+                raise ValueError("telegram buy action missing cash_amount")
+            order = service.place_buy_market(
+                ticker=parent_action.ticker,
+                cash_amount=cash_amount,
+                confirm=True,
+                allow_live=allow_live,
+            )
+        else:
+            quantity = execution_request.intent.quantity
+            if quantity is None:
+                raise ValueError("telegram sell action missing quantity")
+            order = service.place_sell_market(
+                ticker=parent_action.ticker,
+                qty=quantity,
+                confirm=True,
+                allow_live=allow_live,
+            )
+        return finalize_callback_execution(
+            repo=repo,
+            execution_request=execution_request,
+            message_text=message_text,
+            order=order,
+        )
+    except (KISClientError, ValueError) as exc:
+        return finalize_callback_execution(
+            repo=repo,
+            execution_request=execution_request,
+            message_text=message_text,
+            order=None,
+            error_message=_format_telegram_callback_error(exc),
+        )
+
+
+def _format_telegram_callback_error(exc: Exception) -> str:
+    if isinstance(exc, KISClientError):
+        return _format_kis_error(exc)
+    return str(exc)
+
+
+def _try_edit_callback_error_message(
+    *,
+    client: TelegramClient,
+    envelope,
+    repo: Repository,
+    error_message: str,
+) -> None:
+    try:
+        action = repo.get_tg_action(envelope.action_id)
+        ticker = action.ticker if action is not None else "-"
+        action_name = action.action_type.value if action is not None else "-"
+        base_text = envelope.message_text.split("\n\n[Telegram Action]\n", maxsplit=1)[0].strip()
+        lines = [
+            base_text,
+            "",
+            "[Telegram Action]",
+            f"ticker={ticker}",
+            f"action={action_name}",
+            "status=failed",
+            f"detail={error_message}",
+        ]
+        message_text = "\n".join(line for line in lines if line != "" or base_text)
+        client.edit_message_text(message_id=envelope.message_id, text=message_text)
+    except Exception:
+        return
+
+
+def _resolve_kis_environment() -> str:
+    return os.getenv("KIS_ENV", "paper").strip().lower() or "paper"
 
 
 def _format_kis_error(exc: Exception) -> str:
@@ -1197,9 +1515,7 @@ def _render_positions_table(positions: list[KISPosition]) -> str:
     ]
 
     def _line(values: tuple[str, str, str, str, str, str]) -> str:
-        return " | ".join(
-            value.ljust(widths[index]) for index, value in enumerate(values)
-        )
+        return " | ".join(value.ljust(widths[index]) for index, value in enumerate(values))
 
     divider = "-+-".join("-" * width for width in widths)
     body = [_line(headers), divider]
@@ -1252,9 +1568,7 @@ def _render_candidate_table(candidates: list[Candidate]) -> str:
     ]
 
     def _line(values: tuple[str, str, str, str]) -> str:
-        return " | ".join(
-            value.ljust(widths[index]) for index, value in enumerate(values)
-        )
+        return " | ".join(value.ljust(widths[index]) for index, value in enumerate(values))
 
     divider = "-+-".join("-" * width for width in widths)
     body = [_line(headers), divider]

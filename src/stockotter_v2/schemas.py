@@ -210,17 +210,26 @@ class BrokerOrder(DTOBase):
     def validate_order_datetime_fields(cls, value: datetime | None) -> datetime | None:
         if value is None:
             return None
+        return _normalize_datetime(value)
 
 
 class TelegramActionType(StrEnum):
     BUY = "buy"
     SELL = "sell"
     SKIP = "skip"
+    CONFIRM_BUY = "confirm_buy"
+    CONFIRM_SELL = "confirm_sell"
+    CANCEL = "cancel"
 
 
 class TelegramActionStatus(StrEnum):
     PENDING = "pending"
     ACKED = "acked"
+    CONFIRM_PENDING = "confirm_pending"
+    EXECUTED = "executed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    SKIPPED = "skipped"
 
 
 class TelegramAction(DTOBase):
@@ -229,6 +238,7 @@ class TelegramAction(DTOBase):
     ticker: str
     quantity: int | None = Field(default=None, ge=1)
     cash_amount: int | None = Field(default=None, ge=1)
+    parent_action_id: str | None = None
     created_at: datetime = Field(default_factory=now_in_seoul)
     status: TelegramActionStatus = TelegramActionStatus.PENDING
     message_id: int | None = None
@@ -242,6 +252,10 @@ class TelegramAction(DTOBase):
 
 class OrderIntentStatus(StrEnum):
     CREATED = "created"
+    AWAITING_CONFIRMATION = "awaiting_confirmation"
+    EXECUTED = "executed"
+    REJECTED = "rejected"
+    CANCELLED = "cancelled"
 
 
 class OrderIntent(DTOBase):

@@ -125,6 +125,9 @@ class TradingConfig(BaseModel):
     max_daily_order_count: int = Field(default=3, ge=1)
     max_cash_per_order: int = Field(default=500_000, ge=1)
     max_total_cash_per_day: int = Field(default=1_000_000, ge=1)
+    telegram_paper_one_step_enabled: bool = False
+    telegram_default_buy_cash_amount: int = Field(default=100_000, ge=1)
+    telegram_default_sell_quantity: int = Field(default=1, ge=1)
 
     @field_validator("live_ticker_allowlist", mode="before")
     @classmethod

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from typing import Any
@@ -27,6 +28,16 @@ class TelegramSendResult:
 @dataclass(frozen=True)
 class TelegramCallbackAckResult:
     ok: bool
+
+
+@dataclass(frozen=True)
+class TelegramEditResult:
+    ok: bool
+
+
+@dataclass(frozen=True)
+class TelegramGetUpdatesResult:
+    updates: list[dict[str, Any]]
 
 
 class TelegramClient:
@@ -151,10 +162,101 @@ class TelegramClient:
             )
         if not payload.get("ok", False):
             raise TelegramAPIError(
-                "telegram callback acknowledgement rejected "
-                f"detail={description}"
+                f"telegram callback acknowledgement rejected detail={description}"
             )
         return TelegramCallbackAckResult(ok=True)
+
+    def edit_message_text(
+        self,
+        *,
+        message_id: int,
+        text: str,
+        reply_markup: dict[str, Any] | None = None,
+    ) -> TelegramEditResult:
+        normalized_text = text.strip()
+        if message_id <= 0:
+            raise ValueError("message_id must be > 0")
+        if not normalized_text:
+            raise ValueError("telegram edited message text must not be empty")
+
+        payload: dict[str, Any] = {
+            "chat_id": self.chat_id,
+            "message_id": message_id,
+            "text": normalized_text,
+            "disable_web_page_preview": True,
+        }
+        if reply_markup is not None:
+            payload["reply_markup"] = reply_markup
+
+        try:
+            response = self.session.post(
+                self._build_endpoint("editMessageText"),
+                json=payload,
+                timeout=self.timeout_seconds,
+            )
+        except requests.RequestException as exc:
+            raise TelegramAPIError("telegram editMessageText failed") from exc
+
+        response_payload = _safe_json(response)
+        description = _extract_description(response_payload)
+        if response.status_code in {401, 403}:
+            raise TelegramAuthError(
+                f"telegram auth failed status={response.status_code} detail={description}"
+            )
+        if response.status_code >= 400:
+            raise TelegramAPIError(
+                "telegram editMessageText failed "
+                f"status={response.status_code} detail={description}"
+            )
+        if not response_payload.get("ok", False):
+            raise TelegramAPIError(f"telegram editMessageText rejected detail={description}")
+        return TelegramEditResult(ok=True)
+
+    def get_updates(
+        self,
+        *,
+        offset: int | None = None,
+        timeout: int = 20,
+        allowed_updates: list[str] | None = None,
+    ) -> TelegramGetUpdatesResult:
+        if offset is not None and offset < 0:
+            raise ValueError("offset must be >= 0")
+        if timeout < 0:
+            raise ValueError("timeout must be >= 0")
+
+        params: dict[str, Any] = {"timeout": timeout}
+        if offset is not None:
+            params["offset"] = offset
+        if allowed_updates is not None:
+            params["allowed_updates"] = json.dumps(allowed_updates, ensure_ascii=False)
+
+        try:
+            response = self.session.get(
+                self._build_endpoint("getUpdates"),
+                params=params,
+                timeout=max(self.timeout_seconds, float(timeout) + 5.0),
+            )
+        except requests.RequestException as exc:
+            raise TelegramAPIError("telegram getUpdates failed") from exc
+
+        payload = _safe_json(response)
+        description = _extract_description(payload)
+        if response.status_code in {401, 403}:
+            raise TelegramAuthError(
+                f"telegram auth failed status={response.status_code} detail={description}"
+            )
+        if response.status_code >= 400:
+            raise TelegramAPIError(
+                f"telegram getUpdates failed status={response.status_code} detail={description}"
+            )
+        if not payload.get("ok", False):
+            raise TelegramAPIError(f"telegram getUpdates rejected detail={description}")
+
+        raw_results = payload.get("result")
+        if not isinstance(raw_results, list):
+            raise TelegramAPIError("telegram getUpdates returned non-list result")
+        updates = [item for item in raw_results if isinstance(item, dict)]
+        return TelegramGetUpdatesResult(updates=updates)
 
     def _build_endpoint(self, method_name: str) -> str:
         return f"https://api.telegram.org/bot{self.bot_token}/{method_name}"

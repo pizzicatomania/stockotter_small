@@ -68,6 +68,9 @@
     "live_ticker_allowlist": [],
     "max_daily_order_count": 3,
     "max_cash_per_order": 500000,
-    "max_total_cash_per_day": 1000000
+    "max_total_cash_per_day": 1000000,
+    "telegram_paper_one_step_enabled": false,
+    "telegram_default_buy_cash_amount": 100000,
+    "telegram_default_sell_quantity": 1
   }
 }
