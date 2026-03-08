@@ -508,6 +508,58 @@ class Repository:
             rows = conn.execute(query, params).fetchall()
         return [self._row_to_order(row) for row in rows]
 
+    def count_orders_for_day(
+        self,
+        *,
+        order_date: date | str,
+        environment: str | None = None,
+        include_dry_run: bool = False,
+    ) -> int:
+        date_key = order_date.isoformat() if isinstance(order_date, date) else order_date
+        query = """
+        SELECT COUNT(*) AS order_count
+        FROM orders
+        WHERE substr(created_at, 1, 10) = ?
+        """
+        params: list[object] = [date_key]
+        if environment is not None:
+            query += " AND environment = ?"
+            params.append(environment)
+        if not include_dry_run:
+            query += " AND is_dry_run = 0"
+
+        with self._connect() as conn:
+            row = conn.execute(query, tuple(params)).fetchone()
+        return int(row["order_count"]) if row is not None else 0
+
+    def sum_order_cash_for_day(
+        self,
+        *,
+        order_date: date | str,
+        environment: str | None = None,
+        side: OrderSide | None = None,
+        include_dry_run: bool = False,
+    ) -> int:
+        date_key = order_date.isoformat() if isinstance(order_date, date) else order_date
+        query = """
+        SELECT COALESCE(SUM(COALESCE(cash_amount, price * quantity, 0)), 0) AS total_cash
+        FROM orders
+        WHERE substr(created_at, 1, 10) = ?
+        """
+        params: list[object] = [date_key]
+        if environment is not None:
+            query += " AND environment = ?"
+            params.append(environment)
+        if side is not None:
+            query += " AND side = ?"
+            params.append(side.value)
+        if not include_dry_run:
+            query += " AND is_dry_run = 0"
+
+        with self._connect() as conn:
+            row = conn.execute(query, tuple(params)).fetchone()
+        return int(row["total_cash"]) if row is not None else 0
+
     def _init_schema(self) -> None:
         schema_path = Path(__file__).with_name("schema.sql")
         schema = schema_path.read_text(encoding="utf-8")

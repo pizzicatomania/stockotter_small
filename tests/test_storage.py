@@ -4,7 +4,14 @@ from typer.testing import CliRunner
 
 import stockotter_v2.storage.cache as cache_module
 from stockotter_small.cli import app
-from stockotter_v2.schemas import NewsItem, StructuredEvent
+from stockotter_v2.schemas import (
+    BrokerOrder,
+    NewsItem,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    StructuredEvent,
+)
 from stockotter_v2.storage import FileCache, Repository
 
 
@@ -76,3 +83,34 @@ def test_cli_debug_storage_smoke(tmp_path) -> None:
     assert "storage ok" in result.output
     assert db_path.exists()
     assert cache_dir.exists()
+
+
+def test_repository_order_day_aggregates(tmp_path) -> None:
+    repo = Repository(tmp_path / "storage.db")
+    order = BrokerOrder(
+        order_id="order-001",
+        broker="kis",
+        environment="live",
+        ticker="005930",
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        quantity=2,
+        price=70000,
+        status=OrderStatus.SUBMITTED,
+        is_dry_run=False,
+        request_payload={},
+        response_payload={},
+        created_at="2026-03-10T09:00:00+09:00",
+        updated_at="2026-03-10T09:00:00+09:00",
+    )
+    repo.upsert_order(order)
+
+    assert repo.count_orders_for_day(order_date="2026-03-10", environment="live") == 1
+    assert (
+        repo.sum_order_cash_for_day(
+            order_date="2026-03-10",
+            environment="live",
+            side=OrderSide.BUY,
+        )
+        == 140000
+    )

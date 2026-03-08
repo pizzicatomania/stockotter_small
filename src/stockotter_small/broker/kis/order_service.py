@@ -1,12 +1,20 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
 from stockotter_small.broker.kis.client import KISClient, KISClientError
-from stockotter_v2.schemas import BrokerOrder, OrderSide, OrderStatus, OrderType, now_in_seoul
+from stockotter_v2.config import TradingConfig
+from stockotter_v2.schemas import (
+    BrokerOrder,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    now_in_seoul,
+)
 from stockotter_v2.storage import Repository
 
 _SENSITIVE_KEYS = {
@@ -26,10 +34,12 @@ class OrderService:
         *,
         client: KISClient,
         repo: Repository,
+        trading_config: TradingConfig | None = None,
         now_fn: Callable[[], datetime] | None = None,
     ) -> None:
         self.client = client
         self.repo = repo
+        self.trading_config = trading_config or TradingConfig()
         self.now_fn = now_fn or now_in_seoul
 
     @classmethod
@@ -38,6 +48,7 @@ class OrderService:
         *,
         db_path: Path,
         cache_path: Path | None = None,
+        trading_config: TradingConfig | None = None,
         timeout_seconds: float = 10.0,
         refresh_margin_seconds: int = 60,
     ) -> OrderService:
@@ -47,7 +58,7 @@ class OrderService:
             timeout_seconds=timeout_seconds,
             refresh_margin_seconds=refresh_margin_seconds,
         )
-        return cls(client=client, repo=repo)
+        return cls(client=client, repo=repo, trading_config=trading_config)
 
     def place_buy_market(
         self,
@@ -55,7 +66,9 @@ class OrderService:
         cash_amount: int,
         *,
         confirm: bool = False,
+        allow_live: bool = False,
     ) -> BrokerOrder:
+        self._assert_order_endpoints_enabled()
         cash_value = _normalize_positive_int(cash_amount, field_name="cash_amount")
         quote = self.client.get_price(ticker)
         quantity = cash_value // quote.current_price
@@ -73,6 +86,7 @@ class OrderService:
             price=None,
             cash_amount=cash_value,
             confirm=confirm,
+            allow_live=allow_live,
             note=note,
         )
 
@@ -83,7 +97,9 @@ class OrderService:
         price: int,
         *,
         confirm: bool = False,
+        allow_live: bool = False,
     ) -> BrokerOrder:
+        self._assert_order_endpoints_enabled()
         return self._place_order(
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
@@ -92,10 +108,19 @@ class OrderService:
             price=_normalize_positive_int(price, field_name="price"),
             cash_amount=None,
             confirm=confirm,
+            allow_live=allow_live,
             note="",
         )
 
-    def place_sell_market(self, ticker: str, qty: int, *, confirm: bool = False) -> BrokerOrder:
+    def place_sell_market(
+        self,
+        ticker: str,
+        qty: int,
+        *,
+        confirm: bool = False,
+        allow_live: bool = False,
+    ) -> BrokerOrder:
+        self._assert_order_endpoints_enabled()
         return self._place_order(
             side=OrderSide.SELL,
             order_type=OrderType.MARKET,
@@ -104,6 +129,7 @@ class OrderService:
             price=None,
             cash_amount=None,
             confirm=confirm,
+            allow_live=allow_live,
             note="",
         )
 
@@ -114,7 +140,9 @@ class OrderService:
         price: int,
         *,
         confirm: bool = False,
+        allow_live: bool = False,
     ) -> BrokerOrder:
+        self._assert_order_endpoints_enabled()
         return self._place_order(
             side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
@@ -123,6 +151,7 @@ class OrderService:
             price=_normalize_positive_int(price, field_name="price"),
             cash_amount=None,
             confirm=confirm,
+            allow_live=allow_live,
             note="",
         )
 
@@ -136,10 +165,12 @@ class OrderService:
         price: int | None,
         cash_amount: int | None,
         confirm: bool,
+        allow_live: bool,
         note: str,
     ) -> BrokerOrder:
         ticker_code = _normalize_ticker_code(ticker)
         now = self.now_fn()
+        order_date = now.date()
         order_id = _build_order_id(now=now, ticker=ticker_code)
         request_payload = self._build_request_payload(
             side=side,
@@ -171,8 +202,31 @@ class OrderService:
             self.repo.upsert_order(base_order)
             return base_order
 
-        if self.client.environment != "paper":
-            raise ValueError("actual order sending is only enabled in paper environment")
+        rejection_message = self._validate_execution_gates(
+            side=side,
+            ticker=ticker_code,
+            quantity=quantity,
+            price=price,
+            cash_amount=cash_amount,
+            allow_live=allow_live,
+            order_date=order_date,
+        )
+        if rejection_message is not None:
+            rejected = base_order.model_copy(
+                update={
+                    "status": OrderStatus.REJECTED,
+                    "is_dry_run": False,
+                    "updated_at": self.now_fn(),
+                    "submitted_at": self.now_fn(),
+                    "response_payload": {
+                        "error_type": "TradingSafetyError",
+                        "message": rejection_message,
+                    },
+                    "note": _join_note(note, rejection_message),
+                }
+            )
+            self.repo.upsert_order(rejected)
+            return rejected
 
         pending = base_order.model_copy(
             update={
@@ -248,6 +302,75 @@ class OrderService:
             },
         }
 
+    def _assert_order_endpoints_enabled(self) -> None:
+        disabled = os.getenv("TRADING_DISABLED", "").strip().lower()
+        if disabled in {"1", "true", "yes", "on"}:
+            raise ValueError("order endpoints are disabled by TRADING_DISABLED")
+
+    def _validate_execution_gates(
+        self,
+        *,
+        side: OrderSide,
+        ticker: str,
+        quantity: int,
+        price: int | None,
+        cash_amount: int | None,
+        allow_live: bool,
+        order_date: date,
+    ) -> str | None:
+        environment = self.client.environment
+        if environment == "paper":
+            if allow_live:
+                return "--live flag requires KIS_ENV=live"
+            return None
+
+        if environment != "live":
+            return f"unsupported trading environment: {environment}"
+        if not allow_live:
+            return "live trading requires --live"
+
+        allowlist = self.trading_config.live_ticker_allowlist
+        if allowlist and ticker not in allowlist:
+            return f"ticker {ticker} is not in trading.live_ticker_allowlist"
+
+        current_order_count = self.repo.count_orders_for_day(
+            order_date=order_date,
+            environment="live",
+            include_dry_run=False,
+        )
+        if current_order_count >= self.trading_config.max_daily_order_count:
+            return (
+                "live daily order count limit exceeded "
+                f"count={current_order_count} limit={self.trading_config.max_daily_order_count}"
+            )
+
+        estimated_cash = _estimate_cash_exposure(
+            side=side,
+            quantity=quantity,
+            price=price,
+            cash_amount=cash_amount,
+        )
+        if estimated_cash > self.trading_config.max_cash_per_order:
+            return (
+                "live max cash per order exceeded "
+                f"cash={estimated_cash} limit={self.trading_config.max_cash_per_order}"
+            )
+
+        total_cash_today = self.repo.sum_order_cash_for_day(
+            order_date=order_date,
+            environment="live",
+            side=OrderSide.BUY,
+            include_dry_run=False,
+        )
+        if total_cash_today + estimated_cash > self.trading_config.max_total_cash_per_day:
+            return (
+                "live max total cash per day exceeded "
+                f"current={total_cash_today} next={estimated_cash} "
+                f"limit={self.trading_config.max_total_cash_per_day}"
+            )
+
+        return None
+
 
 def _normalize_positive_int(value: int, *, field_name: str) -> int:
     try:
@@ -268,6 +391,22 @@ def _normalize_ticker_code(ticker: str) -> str:
     if len(ticker_code) not in {5, 6}:
         raise ValueError("ticker must be 5 or 6 digits")
     return ticker_code.zfill(6)
+
+
+def _estimate_cash_exposure(
+    *,
+    side: OrderSide,
+    quantity: int,
+    price: int | None,
+    cash_amount: int | None,
+) -> int:
+    if side is OrderSide.SELL:
+        return 0
+    if cash_amount is not None:
+        return cash_amount
+    if price is None:
+        return 0
+    return quantity * price
 
 
 def _build_order_id(*, now: datetime, ticker: str) -> str:

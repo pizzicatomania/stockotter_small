@@ -108,8 +108,9 @@ class _FakeOrderService:
         cash_amount: int,
         *,
         confirm: bool = False,
+        allow_live: bool = False,
     ) -> BrokerOrder:
-        _ = ticker, cash_amount, confirm
+        _ = ticker, cash_amount, confirm, allow_live
         return _build_order(status=OrderStatus.DRY_RUN, note="dry-run", side=OrderSide.BUY)
 
     def place_buy_limit(
@@ -119,12 +120,20 @@ class _FakeOrderService:
         price: int,
         *,
         confirm: bool = False,
+        allow_live: bool = False,
     ) -> BrokerOrder:
-        _ = ticker, qty, price, confirm
+        _ = ticker, qty, price, confirm, allow_live
         return _build_order(status=OrderStatus.SUBMITTED, note="submitted", side=OrderSide.BUY)
 
-    def place_sell_market(self, ticker: str, qty: int, *, confirm: bool = False) -> BrokerOrder:
-        _ = ticker, qty, confirm
+    def place_sell_market(
+        self,
+        ticker: str,
+        qty: int,
+        *,
+        confirm: bool = False,
+        allow_live: bool = False,
+    ) -> BrokerOrder:
+        _ = ticker, qty, confirm, allow_live
         return _build_order(status=OrderStatus.SUBMITTED, note="submitted", side=OrderSide.SELL)
 
     def place_sell_limit(
@@ -134,15 +143,41 @@ class _FakeOrderService:
         price: int,
         *,
         confirm: bool = False,
+        allow_live: bool = False,
     ) -> BrokerOrder:
-        _ = ticker, qty, price, confirm
+        _ = ticker, qty, price, confirm, allow_live
         return _build_order(status=OrderStatus.SUBMITTED, note="submitted", side=OrderSide.SELL)
 
 
 class _FakeRejectedOrderService(_FakeOrderService):
-    def place_sell_market(self, ticker: str, qty: int, *, confirm: bool = False) -> BrokerOrder:
-        _ = ticker, qty, confirm
+    def place_sell_market(
+        self,
+        ticker: str,
+        qty: int,
+        *,
+        confirm: bool = False,
+        allow_live: bool = False,
+    ) -> BrokerOrder:
+        _ = ticker, qty, confirm, allow_live
         return _build_order(status=OrderStatus.REJECTED, note="reject", side=OrderSide.SELL)
+
+
+class _FakeLiveGuardRejectedOrderService(_FakeOrderService):
+    def place_buy_limit(
+        self,
+        ticker: str,
+        qty: int,
+        price: int,
+        *,
+        confirm: bool = False,
+        allow_live: bool = False,
+    ) -> BrokerOrder:
+        _ = ticker, qty, price, confirm, allow_live
+        return _build_order(
+            status=OrderStatus.REJECTED,
+            note="live trading requires --live",
+            side=OrderSide.BUY,
+        )
 
 
 def _build_order(*, status: OrderStatus, note: str, side: OrderSide) -> BrokerOrder:
@@ -165,6 +200,12 @@ def _build_order(*, status: OrderStatus, note: str, side: OrderSide) -> BrokerOr
         created_at="2026-03-08T09:00:00+09:00",
         updated_at="2026-03-08T09:00:00+09:00",
     )
+
+
+def _fake_order_service_factory(*, rejected_live_guard: bool = False):
+    if rejected_live_guard:
+        return _FakeLiveGuardRejectedOrderService()
+    return _FakeOrderService()
 
 
 def test_cli_kis_auth_test_success(monkeypatch) -> None:
@@ -245,7 +286,9 @@ def test_cli_kis_buy_market_dry_run(monkeypatch) -> None:
     monkeypatch.setattr(
         cli_module.OrderService,
         "from_env",
-        staticmethod(lambda db_path, cache_path=None: _FakeOrderService()),
+        staticmethod(
+            lambda db_path, cache_path=None, trading_config=None: _fake_order_service_factory()
+        ),
     )
 
     runner = CliRunner()
@@ -263,7 +306,9 @@ def test_cli_kis_sell_market_rejected_returns_exit_code_1(monkeypatch) -> None:
     monkeypatch.setattr(
         cli_module.OrderService,
         "from_env",
-        staticmethod(lambda db_path, cache_path=None: _FakeRejectedOrderService()),
+        staticmethod(
+            lambda db_path, cache_path=None, trading_config=None: _FakeRejectedOrderService()
+        ),
     )
 
     runner = CliRunner()
@@ -274,3 +319,24 @@ def test_cli_kis_sell_market_rejected_returns_exit_code_1(monkeypatch) -> None:
 
     assert result.exit_code == 1
     assert "status=rejected" in result.output
+
+
+def test_cli_kis_buy_limit_live_rejected_returns_exit_code_1(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cli_module.OrderService,
+        "from_env",
+        staticmethod(
+            lambda db_path, cache_path=None, trading_config=None: _fake_order_service_factory(
+                rejected_live_guard=True
+            )
+        ),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli_module.app,
+        ["kis", "buy-limit", "005930", "--qty", "1", "--price", "70000", "--confirm"],
+    )
+
+    assert result.exit_code == 1
+    assert "live trading requires --live" in result.output

@@ -68,3 +68,5 @@ def test_config_example_load_and_validate() -> None:
     assert config.timezone == "Asia/Seoul"
     assert len(config.sources) > 0
     assert config.llm.provider == "gemini"
+    assert config.trading.max_daily_order_count == 3
+    assert config.trading.max_cash_per_order == 500000

@@ -118,6 +118,49 @@ class UniverseConfig(BaseModel):
         return self
 
 
+class TradingConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    live_ticker_allowlist: list[str] = Field(default_factory=list)
+    max_daily_order_count: int = Field(default=3, ge=1)
+    max_cash_per_order: int = Field(default=500_000, ge=1)
+    max_total_cash_per_day: int = Field(default=1_000_000, ge=1)
+
+    @field_validator("live_ticker_allowlist", mode="before")
+    @classmethod
+    def normalize_live_ticker_allowlist(cls, value: object) -> list[str]:
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            raise ValueError("trading.live_ticker_allowlist must be a list")
+
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for raw_item in value:
+            ticker = str(raw_item or "").strip()
+            if not ticker:
+                continue
+            if not ticker.isdigit() or len(ticker) not in {5, 6}:
+                raise ValueError(
+                    "trading.live_ticker_allowlist entries must be 5 or 6 digit tickers"
+                )
+            padded = ticker.zfill(6)
+            if padded in seen:
+                continue
+            seen.add(padded)
+            normalized.append(padded)
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_cash_limits(self) -> TradingConfig:
+        if self.max_total_cash_per_day < self.max_cash_per_order:
+            raise ValueError(
+                "trading.max_total_cash_per_day must be greater than or equal to "
+                "max_cash_per_order"
+            )
+        return self
+
+
 class AppConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -128,6 +171,7 @@ class AppConfig(BaseModel):
     news_quality: NewsQualityConfig = Field(default_factory=NewsQualityConfig)
     scoring: ScoringConfig
     universe: UniverseConfig
+    trading: TradingConfig = Field(default_factory=TradingConfig)
 
     @field_validator("timezone")
     @classmethod

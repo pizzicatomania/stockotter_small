@@ -7,7 +7,8 @@ import pytest
 from stockotter_small.broker.kis import KISAPIError
 from stockotter_small.broker.kis.order_service import OrderService
 from stockotter_small.broker.kis.schemas import KISOrderResponse, KISPriceQuote
-from stockotter_v2.schemas import OrderStatus
+from stockotter_v2.config import TradingConfig
+from stockotter_v2.schemas import OrderSide, OrderStatus
 from stockotter_v2.storage import Repository
 
 
@@ -134,9 +135,205 @@ def test_order_service_confirmed_order_records_rejected_status(tmp_path) -> None
     assert "reject" in stored.note
 
 
-def test_order_service_blocks_confirmed_orders_outside_paper_env(tmp_path) -> None:
+def test_order_service_live_requires_explicit_allow_live_flag(tmp_path) -> None:
     repo = Repository(tmp_path / "storage.db")
-    service = OrderService(client=_FakeClient(environment="live"), repo=repo)
+    fixed_now = datetime.fromisoformat("2026-03-10T09:00:00+09:00")
+    service = OrderService(
+        client=_FakeClient(environment="live"),
+        repo=repo,
+        now_fn=lambda: fixed_now,
+    )
+
+    order = service.place_buy_limit("005930", qty=1, price=70000, confirm=True)
+    stored = repo.get_order(order.order_id)
+
+    assert stored is not None
+    assert stored.status == OrderStatus.REJECTED
+    assert stored.response_payload["error_type"] == "TradingSafetyError"
+    assert "--live" in stored.note
+
+
+def test_order_service_live_submits_when_all_gates_pass(tmp_path) -> None:
+    repo = Repository(tmp_path / "storage.db")
+    fixed_now = datetime.fromisoformat("2026-03-10T09:00:00+09:00")
+    service = OrderService(
+        client=_FakeClient(environment="live"),
+        repo=repo,
+        trading_config=TradingConfig(
+            live_ticker_allowlist=["005930"],
+            max_daily_order_count=2,
+            max_cash_per_order=500000,
+            max_total_cash_per_day=1000000,
+        ),
+        now_fn=lambda: fixed_now,
+    )
+
+    order = service.place_buy_limit(
+        "005930",
+        qty=1,
+        price=70000,
+        confirm=True,
+        allow_live=True,
+    )
+    stored = repo.get_order(order.order_id)
+
+    assert stored is not None
+    assert stored.status == OrderStatus.SUBMITTED
+    assert stored.environment == "live"
+
+
+def test_order_service_live_allowlist_blocks_non_allowed_ticker(tmp_path) -> None:
+    repo = Repository(tmp_path / "storage.db")
+    fixed_now = datetime.fromisoformat("2026-03-10T09:00:00+09:00")
+    service = OrderService(
+        client=_FakeClient(environment="live"),
+        repo=repo,
+        trading_config=TradingConfig(live_ticker_allowlist=["000660"]),
+        now_fn=lambda: fixed_now,
+    )
+
+    order = service.place_buy_limit(
+        "005930",
+        qty=1,
+        price=70000,
+        confirm=True,
+        allow_live=True,
+    )
+
+    assert order.status == OrderStatus.REJECTED
+    assert "allowlist" in order.note
+
+
+def test_order_service_live_rejects_when_max_daily_order_count_exceeded(tmp_path) -> None:
+    repo = Repository(tmp_path / "storage.db")
+    fixed_now = datetime.fromisoformat("2026-03-10T09:00:00+09:00")
+    service = OrderService(
+        client=_FakeClient(environment="live"),
+        repo=repo,
+        trading_config=TradingConfig(max_daily_order_count=1),
+        now_fn=lambda: fixed_now,
+    )
+    repo.upsert_order(
+        service.place_buy_limit(
+            "005930",
+            qty=1,
+            price=70000,
+            confirm=False,
+        ).model_copy(
+            update={
+                "environment": "live",
+                "status": OrderStatus.SUBMITTED,
+                "is_dry_run": False,
+            }
+        )
+    )
+
+    order = service.place_buy_limit(
+        "005930",
+        qty=1,
+        price=70000,
+        confirm=True,
+        allow_live=True,
+    )
+
+    assert order.status == OrderStatus.REJECTED
+    assert "daily order count limit" in order.note
+
+
+def test_order_service_live_rejects_when_max_cash_per_order_exceeded(tmp_path) -> None:
+    repo = Repository(tmp_path / "storage.db")
+    fixed_now = datetime.fromisoformat("2026-03-10T09:00:00+09:00")
+    service = OrderService(
+        client=_FakeClient(environment="live"),
+        repo=repo,
+        trading_config=TradingConfig(max_cash_per_order=100000),
+        now_fn=lambda: fixed_now,
+    )
+
+    order = service.place_buy_limit(
+        "005930",
+        qty=2,
+        price=70000,
+        confirm=True,
+        allow_live=True,
+    )
+
+    assert order.status == OrderStatus.REJECTED
+    assert "max cash per order" in order.note
+
+
+def test_order_service_live_rejects_when_max_total_cash_per_day_exceeded(tmp_path) -> None:
+    repo = Repository(tmp_path / "storage.db")
+    fixed_now = datetime.fromisoformat("2026-03-10T09:00:00+09:00")
+    service = OrderService(
+        client=_FakeClient(environment="live"),
+        repo=repo,
+        trading_config=TradingConfig(
+            max_cash_per_order=100000,
+            max_total_cash_per_day=100000,
+        ),
+        now_fn=lambda: fixed_now,
+    )
+    repo.upsert_order(
+        service.place_buy_limit(
+            "005930",
+            qty=1,
+            price=80000,
+            confirm=False,
+        ).model_copy(
+            update={
+                "environment": "live",
+                "status": OrderStatus.SUBMITTED,
+                "is_dry_run": False,
+            }
+        )
+    )
+
+    order = service.place_buy_limit(
+        "005930",
+        qty=1,
+        price=30000,
+        confirm=True,
+        allow_live=True,
+    )
+
+    assert order.status == OrderStatus.REJECTED
+    assert "max total cash per day" in order.note
+
+
+def test_order_service_live_sell_does_not_consume_cash_limit(tmp_path) -> None:
+    repo = Repository(tmp_path / "storage.db")
+    fixed_now = datetime.fromisoformat("2026-03-10T09:00:00+09:00")
+    service = OrderService(
+        client=_FakeClient(environment="live"),
+        repo=repo,
+        trading_config=TradingConfig(
+            max_cash_per_order=1,
+            max_total_cash_per_day=1,
+        ),
+        now_fn=lambda: fixed_now,
+    )
+
+    order = service.place_sell_market("005930", qty=1, confirm=True, allow_live=True)
+
+    assert order.status == OrderStatus.SUBMITTED
+    assert repo.sum_order_cash_for_day(
+        order_date=fixed_now.date(),
+        environment="live",
+        side=OrderSide.BUY,
+        include_dry_run=False,
+    ) == 0
+
+
+def test_order_service_trading_disabled_env_blocks_all_order_endpoints(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setenv("TRADING_DISABLED", "1")
+    repo = Repository(tmp_path / "storage.db")
+    service = OrderService(client=_FakeClient(), repo=repo)
 
     with pytest.raises(ValueError):
-        service.place_buy_limit("005930", qty=1, price=70000, confirm=True)
+        service.place_buy_limit("005930", qty=1, price=70000, confirm=False)
+
+    assert repo.list_orders() == []

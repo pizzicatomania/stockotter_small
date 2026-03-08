@@ -186,10 +186,19 @@ def kis_buy_market(
     ticker: str = typer.Argument(..., help="매수할 종목코드 (예: 005930)."),
     cash_amount: int = typer.Option(..., "--cash-amount", min=1, help="사용할 현금 금액."),
     confirm: bool = typer.Option(False, "--confirm", help="실제 주문을 전송합니다."),
+    live: bool = typer.Option(False, "--live", help="live 환경 실주문 실행을 허용합니다."),
     db_path: Path = typer.Option(
         Path("data/storage/stockotter.db"),
         "--db-path",
         help="SQLite DB file path.",
+    ),
+    config_path: Path = typer.Option(
+        Path("config/config.example.yaml"),
+        "--config",
+        help="Config file path.",
+        exists=True,
+        dir_okay=False,
+        readable=True,
     ),
     cache_path: Path | None = typer.Option(
         None,
@@ -198,9 +207,18 @@ def kis_buy_market(
     ),
 ) -> None:
     """Create a buy market order. Default is dry-run until --confirm is set."""
-    service = _build_order_service_or_exit(db_path=db_path, cache_path=cache_path)
+    service = _build_order_service_or_exit(
+        db_path=db_path,
+        cache_path=cache_path,
+        config_path=config_path,
+    )
     try:
-        order = service.place_buy_market(ticker=ticker, cash_amount=cash_amount, confirm=confirm)
+        order = service.place_buy_market(
+            ticker=ticker,
+            cash_amount=cash_amount,
+            confirm=confirm,
+            allow_live=live,
+        )
     except (KISClientError, ValueError) as exc:
         typer.echo(_format_kis_error(exc), err=True)
         raise typer.Exit(code=1) from exc
@@ -213,10 +231,19 @@ def kis_buy_limit(
     qty: int = typer.Option(..., "--qty", min=1, help="주문 수량."),
     price: int = typer.Option(..., "--price", min=1, help="지정가."),
     confirm: bool = typer.Option(False, "--confirm", help="실제 주문을 전송합니다."),
+    live: bool = typer.Option(False, "--live", help="live 환경 실주문 실행을 허용합니다."),
     db_path: Path = typer.Option(
         Path("data/storage/stockotter.db"),
         "--db-path",
         help="SQLite DB file path.",
+    ),
+    config_path: Path = typer.Option(
+        Path("config/config.example.yaml"),
+        "--config",
+        help="Config file path.",
+        exists=True,
+        dir_okay=False,
+        readable=True,
     ),
     cache_path: Path | None = typer.Option(
         None,
@@ -225,13 +252,18 @@ def kis_buy_limit(
     ),
 ) -> None:
     """Create a buy limit order. Default is dry-run until --confirm is set."""
-    service = _build_order_service_or_exit(db_path=db_path, cache_path=cache_path)
+    service = _build_order_service_or_exit(
+        db_path=db_path,
+        cache_path=cache_path,
+        config_path=config_path,
+    )
     try:
         order = service.place_buy_limit(
             ticker=ticker,
             qty=qty,
             price=price,
             confirm=confirm,
+            allow_live=live,
         )
     except (KISClientError, ValueError) as exc:
         typer.echo(_format_kis_error(exc), err=True)
@@ -244,10 +276,19 @@ def kis_sell_market(
     ticker: str = typer.Argument(..., help="매도할 종목코드 (예: 005930)."),
     qty: int = typer.Option(..., "--qty", min=1, help="주문 수량."),
     confirm: bool = typer.Option(False, "--confirm", help="실제 주문을 전송합니다."),
+    live: bool = typer.Option(False, "--live", help="live 환경 실주문 실행을 허용합니다."),
     db_path: Path = typer.Option(
         Path("data/storage/stockotter.db"),
         "--db-path",
         help="SQLite DB file path.",
+    ),
+    config_path: Path = typer.Option(
+        Path("config/config.example.yaml"),
+        "--config",
+        help="Config file path.",
+        exists=True,
+        dir_okay=False,
+        readable=True,
     ),
     cache_path: Path | None = typer.Option(
         None,
@@ -256,9 +297,18 @@ def kis_sell_market(
     ),
 ) -> None:
     """Create a sell market order. Default is dry-run until --confirm is set."""
-    service = _build_order_service_or_exit(db_path=db_path, cache_path=cache_path)
+    service = _build_order_service_or_exit(
+        db_path=db_path,
+        cache_path=cache_path,
+        config_path=config_path,
+    )
     try:
-        order = service.place_sell_market(ticker=ticker, qty=qty, confirm=confirm)
+        order = service.place_sell_market(
+            ticker=ticker,
+            qty=qty,
+            confirm=confirm,
+            allow_live=live,
+        )
     except (KISClientError, ValueError) as exc:
         typer.echo(_format_kis_error(exc), err=True)
         raise typer.Exit(code=1) from exc
@@ -271,10 +321,19 @@ def kis_sell_limit(
     qty: int = typer.Option(..., "--qty", min=1, help="주문 수량."),
     price: int = typer.Option(..., "--price", min=1, help="지정가."),
     confirm: bool = typer.Option(False, "--confirm", help="실제 주문을 전송합니다."),
+    live: bool = typer.Option(False, "--live", help="live 환경 실주문 실행을 허용합니다."),
     db_path: Path = typer.Option(
         Path("data/storage/stockotter.db"),
         "--db-path",
         help="SQLite DB file path.",
+    ),
+    config_path: Path = typer.Option(
+        Path("config/config.example.yaml"),
+        "--config",
+        help="Config file path.",
+        exists=True,
+        dir_okay=False,
+        readable=True,
     ),
     cache_path: Path | None = typer.Option(
         None,
@@ -283,13 +342,18 @@ def kis_sell_limit(
     ),
 ) -> None:
     """Create a sell limit order. Default is dry-run until --confirm is set."""
-    service = _build_order_service_or_exit(db_path=db_path, cache_path=cache_path)
+    service = _build_order_service_or_exit(
+        db_path=db_path,
+        cache_path=cache_path,
+        config_path=config_path,
+    )
     try:
         order = service.place_sell_limit(
             ticker=ticker,
             qty=qty,
             price=price,
             confirm=confirm,
+            allow_live=live,
         )
     except (KISClientError, ValueError) as exc:
         typer.echo(_format_kis_error(exc), err=True)
@@ -972,9 +1036,19 @@ def _build_kis_client_or_exit(*, cache_path: Path | None) -> KISClient:
         raise typer.Exit(code=1) from exc
 
 
-def _build_order_service_or_exit(*, db_path: Path, cache_path: Path | None) -> OrderService:
+def _build_order_service_or_exit(
+    *,
+    db_path: Path,
+    cache_path: Path | None,
+    config_path: Path,
+) -> OrderService:
     try:
-        return OrderService.from_env(db_path=db_path, cache_path=cache_path)
+        config = load_config(config_path)
+        return OrderService.from_env(
+            db_path=db_path,
+            cache_path=cache_path,
+            trading_config=config.trading,
+        )
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc

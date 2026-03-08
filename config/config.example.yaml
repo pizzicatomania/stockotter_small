@@ -63,5 +63,11 @@
     "max_price": 100000,
     "min_value_traded_5d_avg": 10000000000,
     "exclude_managed": true
+  },
+  "trading": {
+    "live_ticker_allowlist": [],
+    "max_daily_order_count": 3,
+    "max_cash_per_order": 500000,
+    "max_total_cash_per_day": 1000000
   }
 }
