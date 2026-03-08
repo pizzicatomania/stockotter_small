@@ -106,3 +106,34 @@ CREATE TABLE IF NOT EXISTS orders (
 
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders (created_at);
 CREATE INDEX IF NOT EXISTS idx_orders_ticker_status ON orders (ticker, status);
+
+CREATE TABLE IF NOT EXISTS tg_actions (
+    action_id TEXT PRIMARY KEY,
+    action_type TEXT NOT NULL,
+    ticker TEXT NOT NULL,
+    quantity INTEGER,
+    cash_amount INTEGER,
+    created_at TEXT NOT NULL,
+    status TEXT NOT NULL,
+    message_id INTEGER,
+    callback_query_id TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_tg_actions_created_at ON tg_actions (created_at);
+CREATE INDEX IF NOT EXISTS idx_tg_actions_status ON tg_actions (status);
+
+CREATE TABLE IF NOT EXISTS order_intents (
+    intent_id TEXT PRIMARY KEY,
+    action_id TEXT NOT NULL UNIQUE,
+    action_type TEXT NOT NULL,
+    ticker TEXT NOT NULL,
+    quantity INTEGER,
+    cash_amount INTEGER,
+    is_dry_run INTEGER NOT NULL DEFAULT 1,
+    status TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (action_id) REFERENCES tg_actions(action_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_order_intents_created_at ON order_intents (created_at);

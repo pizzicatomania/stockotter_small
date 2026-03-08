@@ -210,6 +210,55 @@ class BrokerOrder(DTOBase):
     def validate_order_datetime_fields(cls, value: datetime | None) -> datetime | None:
         if value is None:
             return None
+
+
+class TelegramActionType(StrEnum):
+    BUY = "buy"
+    SELL = "sell"
+    SKIP = "skip"
+
+
+class TelegramActionStatus(StrEnum):
+    PENDING = "pending"
+    ACKED = "acked"
+
+
+class TelegramAction(DTOBase):
+    action_id: str
+    action_type: TelegramActionType
+    ticker: str
+    quantity: int | None = Field(default=None, ge=1)
+    cash_amount: int | None = Field(default=None, ge=1)
+    created_at: datetime = Field(default_factory=now_in_seoul)
+    status: TelegramActionStatus = TelegramActionStatus.PENDING
+    message_id: int | None = None
+    callback_query_id: str | None = None
+
+    @field_validator("created_at", mode="after")
+    @classmethod
+    def validate_created_at(cls, value: datetime) -> datetime:
+        return _normalize_datetime(value)
+
+
+class OrderIntentStatus(StrEnum):
+    CREATED = "created"
+
+
+class OrderIntent(DTOBase):
+    intent_id: str
+    action_id: str
+    action_type: TelegramActionType
+    ticker: str
+    quantity: int | None = Field(default=None, ge=1)
+    cash_amount: int | None = Field(default=None, ge=1)
+    is_dry_run: bool = True
+    status: OrderIntentStatus = OrderIntentStatus.CREATED
+    note: str = ""
+    created_at: datetime = Field(default_factory=now_in_seoul)
+
+    @field_validator("created_at", mode="after")
+    @classmethod
+    def validate_intent_created_at(cls, value: datetime) -> datetime:
         return _normalize_datetime(value)
 
 

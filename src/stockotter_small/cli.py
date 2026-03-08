@@ -22,7 +22,11 @@ from stockotter_small.telegram import (
     TelegramClient,
     TelegramClientError,
     build_briefing_candidates,
+    build_inline_keyboard_and_actions,
     format_briefing_message,
+    parse_callback_update,
+    persist_tg_actions,
+    process_callback_action,
 )
 from stockotter_v2 import load_config
 from stockotter_v2.clusterer import TfidfClusterer
@@ -898,7 +902,10 @@ def tg_send_briefing(
     try:
         briefing_candidates = build_briefing_candidates(repo=repo, asof=asof_date, limit=top)
         message = format_briefing_message(asof=asof_date, candidates=briefing_candidates)
-        result = TelegramClient.from_env().send_message(message)
+        reply_markup, actions = build_inline_keyboard_and_actions(candidates=briefing_candidates)
+        client = TelegramClient.from_env()
+        result = client.send_message(message, reply_markup=reply_markup)
+        persist_tg_actions(repo=repo, actions=actions, message_id=result.message_id)
     except (TelegramClientError, ValueError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
@@ -908,6 +915,59 @@ def tg_send_briefing(
         f"asof={asof_date.isoformat()} "
         f"candidates={len(briefing_candidates)} "
         f"message_id={result.message_id if result.message_id is not None else '-'}"
+    )
+
+
+@tg_app.command("handle-callback")
+def tg_handle_callback(
+    update_json: Path = typer.Option(
+        ...,
+        "--update-json",
+        help="Telegram update JSON file containing callback_query payload.",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+    ),
+    db_path: Path = typer.Option(
+        Path("data/storage/stockotter.db"),
+        "--db-path",
+        help="SQLite DB file path.",
+    ),
+) -> None:
+    """Handle Telegram inline-button callback payload."""
+    raw_payload = update_json.read_text(encoding="utf-8")
+    try:
+        envelope = parse_callback_update(raw_payload)
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    client = TelegramClient.from_env()
+    try:
+        client.answer_callback_query(envelope.callback_query_id)
+    except (TelegramClientError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    repo = Repository(db_path)
+    try:
+        result = process_callback_action(
+            repo=repo,
+            action_id=envelope.action_id,
+            callback_query_id=envelope.callback_query_id,
+        )
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(
+        "telegram callback "
+        f"action_id={result.action.action_id} "
+        f"type={result.action.action_type.value} "
+        f"ticker={result.action.ticker} "
+        f"status={result.action.status.value} "
+        "order_intent_id="
+        f"{result.created_intent.intent_id if result.created_intent is not None else '-'}"
     )
 
 

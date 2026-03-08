@@ -24,6 +24,11 @@ class TelegramSendResult:
     message_id: int | None
 
 
+@dataclass(frozen=True)
+class TelegramCallbackAckResult:
+    ok: bool
+
+
 class TelegramClient:
     def __init__(
         self,
@@ -63,19 +68,28 @@ class TelegramClient:
             raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
         return cls(bot_token=bot_token, chat_id=chat_id)
 
-    def send_message(self, text: str) -> TelegramSendResult:
+    def send_message(
+        self,
+        text: str,
+        *,
+        reply_markup: dict[str, Any] | None = None,
+    ) -> TelegramSendResult:
         normalized_text = text.strip()
         if not normalized_text:
             raise ValueError("telegram message text must not be empty")
 
+        payload = {
+            "chat_id": self.chat_id,
+            "text": normalized_text,
+            "disable_web_page_preview": True,
+        }
+        if reply_markup is not None:
+            payload["reply_markup"] = reply_markup
+
         try:
             response = self.session.post(
                 self._build_endpoint("sendMessage"),
-                json={
-                    "chat_id": self.chat_id,
-                    "text": normalized_text,
-                    "disable_web_page_preview": True,
-                },
+                json=payload,
                 timeout=self.timeout_seconds,
             )
         except requests.RequestException as exc:
@@ -101,6 +115,46 @@ class TelegramClient:
             if isinstance(raw_message_id, int):
                 message_id = raw_message_id
         return TelegramSendResult(message_id=message_id)
+
+    def answer_callback_query(
+        self,
+        callback_query_id: str,
+        *,
+        text: str = "received",
+    ) -> TelegramCallbackAckResult:
+        normalized_id = callback_query_id.strip()
+        if not normalized_id:
+            raise ValueError("callback_query_id must not be empty")
+
+        try:
+            response = self.session.post(
+                self._build_endpoint("answerCallbackQuery"),
+                json={
+                    "callback_query_id": normalized_id,
+                    "text": text,
+                },
+                timeout=self.timeout_seconds,
+            )
+        except requests.RequestException as exc:
+            raise TelegramAPIError("telegram callback acknowledgement failed") from exc
+
+        payload = _safe_json(response)
+        description = _extract_description(payload)
+        if response.status_code in {401, 403}:
+            raise TelegramAuthError(
+                f"telegram auth failed status={response.status_code} detail={description}"
+            )
+        if response.status_code >= 400:
+            raise TelegramAPIError(
+                "telegram answerCallbackQuery failed "
+                f"status={response.status_code} detail={description}"
+            )
+        if not payload.get("ok", False):
+            raise TelegramAPIError(
+                "telegram callback acknowledgement rejected "
+                f"detail={description}"
+            )
+        return TelegramCallbackAckResult(ok=True)
 
     def _build_endpoint(self, method_name: str) -> str:
         return f"https://api.telegram.org/bot{self.bot_token}/{method_name}"

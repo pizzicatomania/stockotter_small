@@ -16,10 +16,15 @@ from stockotter_v2.schemas import (
     Candidate,
     Cluster,
     NewsItem,
+    OrderIntent,
+    OrderIntentStatus,
     OrderSide,
     OrderStatus,
     OrderType,
     StructuredEvent,
+    TelegramAction,
+    TelegramActionStatus,
+    TelegramActionType,
     now_in_seoul,
 )
 
@@ -330,6 +335,136 @@ class Repository:
             return None
         return date.fromisoformat(str(row["updated_at"])[:10])
 
+    def insert_tg_action(self, action: TelegramAction) -> None:
+        payload = (
+            action.action_id,
+            action.action_type.value,
+            action.ticker,
+            action.quantity,
+            action.cash_amount,
+            action.created_at.isoformat(),
+            action.status.value,
+            action.message_id,
+            action.callback_query_id,
+        )
+        query = """
+        INSERT INTO tg_actions (
+            action_id, action_type, ticker, quantity, cash_amount,
+            created_at, status, message_id, callback_query_id
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        with self._connect() as conn:
+            conn.execute(query, payload)
+
+    def get_tg_action(self, action_id: str) -> TelegramAction | None:
+        query = """
+        SELECT
+            action_id, action_type, ticker, quantity, cash_amount,
+            created_at, status, message_id, callback_query_id
+        FROM tg_actions
+        WHERE action_id = ?
+        """
+        with self._connect() as conn:
+            row = conn.execute(query, (action_id,)).fetchone()
+
+        if row is None:
+            return None
+        return self._row_to_tg_action(row)
+
+    def list_tg_actions(self, limit: int | None = None) -> list[TelegramAction]:
+        query = """
+        SELECT
+            action_id, action_type, ticker, quantity, cash_amount,
+            created_at, status, message_id, callback_query_id
+        FROM tg_actions
+        ORDER BY created_at DESC, action_id DESC
+        """
+        params: tuple[object, ...] = ()
+        if limit is not None:
+            query += " LIMIT ?"
+            params = (limit,)
+
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [self._row_to_tg_action(row) for row in rows]
+
+    def update_tg_action_ack(
+        self,
+        *,
+        action_id: str,
+        callback_query_id: str,
+    ) -> None:
+        query = """
+        UPDATE tg_actions
+        SET status = ?, callback_query_id = ?
+        WHERE action_id = ?
+        """
+        with self._connect() as conn:
+            conn.execute(
+                query,
+                (
+                    TelegramActionStatus.ACKED.value,
+                    callback_query_id,
+                    action_id,
+                ),
+            )
+
+    def insert_order_intent(self, intent: OrderIntent) -> None:
+        payload = (
+            intent.intent_id,
+            intent.action_id,
+            intent.action_type.value,
+            intent.ticker,
+            intent.quantity,
+            intent.cash_amount,
+            1 if intent.is_dry_run else 0,
+            intent.status.value,
+            intent.note,
+            intent.created_at.isoformat(),
+        )
+        query = """
+        INSERT INTO order_intents (
+            intent_id, action_id, action_type, ticker, quantity, cash_amount,
+            is_dry_run, status, note, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        with self._connect() as conn:
+            conn.execute(query, payload)
+
+    def get_order_intent_by_action(self, action_id: str) -> OrderIntent | None:
+        query = """
+        SELECT
+            intent_id, action_id, action_type, ticker, quantity, cash_amount,
+            is_dry_run, status, note, created_at
+        FROM order_intents
+        WHERE action_id = ?
+        """
+        with self._connect() as conn:
+            row = conn.execute(query, (action_id,)).fetchone()
+
+        if row is None:
+            return None
+        return self._row_to_order_intent(row)
+
+    def list_order_intents(self, limit: int | None = None) -> list[OrderIntent]:
+        query = """
+        SELECT
+            intent_id, action_id, action_type, ticker, quantity, cash_amount,
+            is_dry_run, status, note, created_at
+        FROM order_intents
+        ORDER BY created_at DESC, intent_id DESC
+        """
+        params: tuple[object, ...] = ()
+        if limit is not None:
+            query += " LIMIT ?"
+            params = (limit,)
+
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [self._row_to_order_intent(row) for row in rows]
+
     def get_paper_position(self, ticker: str) -> PaperPosition | None:
         query = """
         SELECT
@@ -633,6 +768,35 @@ class Repository:
             supporting_news_ids=json.loads(row["supporting_news_ids"]),
             themes=json.loads(row["themes"]),
             risk_flags=json.loads(row["risk_flags"]),
+        )
+
+    @staticmethod
+    def _row_to_tg_action(row: sqlite3.Row) -> TelegramAction:
+        return TelegramAction(
+            action_id=row["action_id"],
+            action_type=TelegramActionType(row["action_type"]),
+            ticker=row["ticker"],
+            quantity=row["quantity"],
+            cash_amount=row["cash_amount"],
+            created_at=row["created_at"],
+            status=TelegramActionStatus(row["status"]),
+            message_id=row["message_id"],
+            callback_query_id=row["callback_query_id"],
+        )
+
+    @staticmethod
+    def _row_to_order_intent(row: sqlite3.Row) -> OrderIntent:
+        return OrderIntent(
+            intent_id=row["intent_id"],
+            action_id=row["action_id"],
+            action_type=TelegramActionType(row["action_type"]),
+            ticker=row["ticker"],
+            quantity=row["quantity"],
+            cash_amount=row["cash_amount"],
+            is_dry_run=bool(row["is_dry_run"]),
+            status=OrderIntentStatus(row["status"]),
+            note=row["note"],
+            created_at=row["created_at"],
         )
 
     @staticmethod

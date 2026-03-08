@@ -136,7 +136,18 @@ PYTHONPATH=src .venv/bin/python -m stockotter_small tg send-briefing --asof 2026
 
 Telegram 메시지는 현재 DB의 최신 candidate snapshot 날짜가 `--asof`와 일치할 때만 전송하며,
 후보별 ticker, score, 대표 headline 1-2개만 고정 포맷으로 보냅니다.
+각 후보에는 inline button `[BUY] [SELL] [SKIP]`가 함께 붙으며,
+callback_data에는 짧은 action id만 넣고 실제 payload는 SQLite `tg_actions`에 저장합니다.
 토큰/채팅 ID는 로그나 에러 메시지에 출력하지 않습니다.
+
+Telegram callback 처리:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m stockotter_small tg handle-callback --update-json data/telegram_callback.json
+```
+
+callback 처리 시 `answerCallbackQuery`를 먼저 호출하고, action 상태를 `ACKED`로 바꾼 뒤
+`BUY`/`SELL`은 SQLite `order_intents`에 dry-run intent만 기록합니다.
 
 캐시/DB/기존 리포트를 지우고 E2E를 새로 실행하려면:
 
