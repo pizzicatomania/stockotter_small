@@ -124,6 +124,18 @@ PYTHONPATH=src .venv/bin/python -m stockotter_small run --tickers-file data/seed
 
 위 커맨드는 표 형태로 결과를 stdout에 출력하고, JSON 리포트를 파일로 저장합니다.
 
+Telegram morning briefing 전송:
+
+```bash
+export TELEGRAM_BOT_TOKEN=...
+export TELEGRAM_CHAT_ID=...
+PYTHONPATH=src .venv/bin/python -m stockotter_small tg send-briefing --asof 2026-03-08
+```
+
+Telegram 메시지는 현재 DB의 최신 candidate snapshot 날짜가 `--asof`와 일치할 때만 전송하며,
+후보별 ticker, score, 대표 headline 1-2개만 고정 포맷으로 보냅니다.
+토큰/채팅 ID는 로그나 에러 메시지에 출력하지 않습니다.
+
 캐시/DB/기존 리포트를 지우고 E2E를 새로 실행하려면:
 
 ```bash

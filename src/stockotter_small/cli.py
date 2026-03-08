@@ -8,6 +8,12 @@ from pathlib import Path
 
 import typer
 
+from stockotter_small.telegram import (
+    TelegramClient,
+    TelegramClientError,
+    build_briefing_candidates,
+    format_briefing_message,
+)
 from stockotter_v2 import load_config
 from stockotter_v2.clusterer import TfidfClusterer
 from stockotter_v2.llm import GeminiClient, LLMStructurer, evaluate_samples, load_eval_samples
@@ -30,9 +36,11 @@ logging.basicConfig(
 
 app = typer.Typer(help="StockOtter Small CLI")
 debug_app = typer.Typer(help="Debug commands")
+tg_app = typer.Typer(help="Telegram commands")
 universe_app = typer.Typer(help="Universe commands")
 paper_app = typer.Typer(help="Paper trading commands")
 app.add_typer(debug_app, name="debug")
+app.add_typer(tg_app, name="tg")
 app.add_typer(universe_app, name="universe")
 app.add_typer(paper_app, name="paper")
 
@@ -541,6 +549,49 @@ def run_one_command_pipeline(
         f"top={len(result.report_rows)}"
     )
     typer.echo(f"json_out={result.json_out}")
+
+
+@tg_app.command("send-briefing")
+def tg_send_briefing(
+    asof: str = typer.Option(
+        ...,
+        "--asof",
+        help="Briefing date (YYYY-MM-DD).",
+    ),
+    top: int = typer.Option(
+        10,
+        "--top",
+        help="Maximum number of candidates to include.",
+        min=1,
+    ),
+    db_path: Path = typer.Option(
+        Path("data/storage/stockotter.db"),
+        "--db-path",
+        help="SQLite DB file path.",
+    ),
+) -> None:
+    """Send the latest candidate briefing to Telegram."""
+    repo = Repository(db_path)
+    try:
+        asof_date = date.fromisoformat(asof)
+    except ValueError as exc:
+        typer.echo(f"invalid --asof date: {asof}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    try:
+        briefing_candidates = build_briefing_candidates(repo=repo, asof=asof_date, limit=top)
+        message = format_briefing_message(asof=asof_date, candidates=briefing_candidates)
+        result = TelegramClient.from_env().send_message(message)
+    except (TelegramClientError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(
+        "telegram sent "
+        f"asof={asof_date.isoformat()} "
+        f"candidates={len(briefing_candidates)} "
+        f"message_id={result.message_id if result.message_id is not None else '-'}"
+    )
 
 
 @paper_app.command("step")
