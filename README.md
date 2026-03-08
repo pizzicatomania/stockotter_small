@@ -126,6 +126,18 @@ PYTHONPATH=src .venv/bin/python -m stockotter_small run --tickers-file data/seed
 JSON 리포트의 각 candidate에는 `supporting_items`가 포함되며, 기사별 `raw_text_summary`와
 `llm_analysis`(event_type/direction/confidence/horizon/themes/risk_flags)를 확인할 수 있습니다.
 
+Telegram morning briefing 전송:
+
+```bash
+export TELEGRAM_BOT_TOKEN=...
+export TELEGRAM_CHAT_ID=...
+PYTHONPATH=src .venv/bin/python -m stockotter_small tg send-briefing --asof 2026-03-08
+```
+
+Telegram 메시지는 현재 DB의 최신 candidate snapshot 날짜가 `--asof`와 일치할 때만 전송하며,
+후보별 ticker, score, 대표 headline 1-2개만 고정 포맷으로 보냅니다.
+토큰/채팅 ID는 로그나 에러 메시지에 출력하지 않습니다.
+
 캐시/DB/기존 리포트를 지우고 E2E를 새로 실행하려면:
 
 ```bash

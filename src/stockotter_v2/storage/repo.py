@@ -275,11 +275,12 @@ class Repository:
         return events
 
     def replace_candidates(self, candidates: list[Candidate]) -> None:
+        snapshot_at = now_in_seoul().isoformat()
         query = """
         INSERT INTO candidates (
-            ticker, score, reasons, supporting_news_ids, themes, risk_flags
+            ticker, score, reasons, supporting_news_ids, themes, risk_flags, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """
         payloads = [
             (
@@ -289,6 +290,8 @@ class Repository:
                 json.dumps(candidate.supporting_news_ids, ensure_ascii=False),
                 json.dumps(candidate.themes, ensure_ascii=False),
                 json.dumps(candidate.risk_flags, ensure_ascii=False),
+                snapshot_at,
+                snapshot_at,
             )
             for candidate in candidates
         ]
@@ -312,6 +315,20 @@ class Repository:
             rows = conn.execute(query, params).fetchall()
 
         return [self._row_to_candidate(row) for row in rows]
+
+    def get_candidate_snapshot_date(self) -> date | None:
+        query = """
+        SELECT updated_at
+        FROM candidates
+        ORDER BY updated_at DESC, ticker ASC
+        LIMIT 1
+        """
+        with self._connect() as conn:
+            row = conn.execute(query).fetchone()
+
+        if row is None or not row["updated_at"]:
+            return None
+        return date.fromisoformat(str(row["updated_at"])[:10])
 
     def get_paper_position(self, ticker: str) -> PaperPosition | None:
         query = """
