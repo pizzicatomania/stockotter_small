@@ -8,7 +8,13 @@ from stockotter_small.broker.kis.client import (
     KISClientError,
     KISRateLimitError,
 )
-from stockotter_small.broker.kis.schemas import KISAccountBalance, KISPosition, KISPriceQuote
+from stockotter_small.broker.kis.order_service import OrderService
+from stockotter_small.broker.kis.schemas import (
+    KISAccountBalance,
+    KISOrderResponse,
+    KISPosition,
+    KISPriceQuote,
+)
 from stockotter_small.broker.kis.token_manager import KISToken, TokenManager, resolve_kis_base_url
 
 __all__ = [
@@ -18,10 +24,12 @@ __all__ = [
     "KISAuthError",
     "KISClient",
     "KISClientError",
+    "KISOrderResponse",
     "KISPosition",
     "KISPriceQuote",
     "KISRateLimitError",
     "KISToken",
+    "OrderService",
     "TokenManager",
     "resolve_kis_base_url",
 ]

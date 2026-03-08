@@ -13,6 +13,7 @@ from stockotter_small.broker.kis import (
     KISPosition,
     KISPriceQuote,
 )
+from stockotter_v2.schemas import BrokerOrder, OrderSide, OrderStatus, OrderType
 
 
 @dataclass
@@ -100,6 +101,72 @@ class _FakeAuthErrorKISClient(_FakeKISClient):
         raise KISAuthError("KIS auth error status=401 msg_cd=EGW00001 msg=invalid token")
 
 
+class _FakeOrderService:
+    def place_buy_market(
+        self,
+        ticker: str,
+        cash_amount: int,
+        *,
+        confirm: bool = False,
+    ) -> BrokerOrder:
+        _ = ticker, cash_amount, confirm
+        return _build_order(status=OrderStatus.DRY_RUN, note="dry-run", side=OrderSide.BUY)
+
+    def place_buy_limit(
+        self,
+        ticker: str,
+        qty: int,
+        price: int,
+        *,
+        confirm: bool = False,
+    ) -> BrokerOrder:
+        _ = ticker, qty, price, confirm
+        return _build_order(status=OrderStatus.SUBMITTED, note="submitted", side=OrderSide.BUY)
+
+    def place_sell_market(self, ticker: str, qty: int, *, confirm: bool = False) -> BrokerOrder:
+        _ = ticker, qty, confirm
+        return _build_order(status=OrderStatus.SUBMITTED, note="submitted", side=OrderSide.SELL)
+
+    def place_sell_limit(
+        self,
+        ticker: str,
+        qty: int,
+        price: int,
+        *,
+        confirm: bool = False,
+    ) -> BrokerOrder:
+        _ = ticker, qty, price, confirm
+        return _build_order(status=OrderStatus.SUBMITTED, note="submitted", side=OrderSide.SELL)
+
+
+class _FakeRejectedOrderService(_FakeOrderService):
+    def place_sell_market(self, ticker: str, qty: int, *, confirm: bool = False) -> BrokerOrder:
+        _ = ticker, qty, confirm
+        return _build_order(status=OrderStatus.REJECTED, note="reject", side=OrderSide.SELL)
+
+
+def _build_order(*, status: OrderStatus, note: str, side: OrderSide) -> BrokerOrder:
+    return BrokerOrder(
+        order_id="order-20260308090000000000-005930",
+        broker="kis",
+        environment="paper",
+        ticker="005930",
+        side=side,
+        order_type=OrderType.MARKET,
+        quantity=2,
+        cash_amount=140000,
+        status=status,
+        is_dry_run=status is OrderStatus.DRY_RUN,
+        request_payload={},
+        response_payload={},
+        external_order_id="0001234567" if status is OrderStatus.SUBMITTED else None,
+        external_order_time="103000" if status is OrderStatus.SUBMITTED else None,
+        note=note,
+        created_at="2026-03-08T09:00:00+09:00",
+        updated_at="2026-03-08T09:00:00+09:00",
+    )
+
+
 def test_cli_kis_auth_test_success(monkeypatch) -> None:
     monkeypatch.setattr(
         cli_module.KISClient,
@@ -172,3 +239,38 @@ def test_cli_kis_price_handles_auth_error(monkeypatch) -> None:
 
     assert result.exit_code == 1
     assert "kis_error=auth" in result.output
+
+
+def test_cli_kis_buy_market_dry_run(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cli_module.OrderService,
+        "from_env",
+        staticmethod(lambda db_path, cache_path=None: _FakeOrderService()),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli_module.app,
+        ["kis", "buy-market", "005930", "--cash-amount", "140000"],
+    )
+
+    assert result.exit_code == 0
+    assert "status=dry_run" in result.output
+    assert "order_id=order-20260308090000000000-005930" in result.output
+
+
+def test_cli_kis_sell_market_rejected_returns_exit_code_1(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cli_module.OrderService,
+        "from_env",
+        staticmethod(lambda db_path, cache_path=None: _FakeRejectedOrderService()),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli_module.app,
+        ["kis", "sell-market", "005930", "--qty", "2", "--confirm"],
+    )
+
+    assert result.exit_code == 1
+    assert "status=rejected" in result.output

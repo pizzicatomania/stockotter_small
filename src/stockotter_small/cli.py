@@ -16,6 +16,7 @@ from stockotter_small.broker.kis import (
     KISClientError,
     KISPosition,
     KISRateLimitError,
+    OrderService,
 )
 from stockotter_v2 import load_config
 from stockotter_v2.clusterer import TfidfClusterer
@@ -27,7 +28,7 @@ from stockotter_v2.pipeline import (
     render_stage_table,
     run_pipeline,
 )
-from stockotter_v2.schemas import Candidate, NewsItem, now_in_seoul
+from stockotter_v2.schemas import BrokerOrder, Candidate, NewsItem, OrderStatus, now_in_seoul
 from stockotter_v2.scoring import RuleBasedScorer, build_score_weights
 from stockotter_v2.storage import FileCache, Repository
 from stockotter_v2.universe import filter_market_snapshot
@@ -178,6 +179,122 @@ def kis_positions(
     )
 
     typer.echo(_render_positions_table(positions))
+
+
+@kis_app.command("buy-market")
+def kis_buy_market(
+    ticker: str = typer.Argument(..., help="매수할 종목코드 (예: 005930)."),
+    cash_amount: int = typer.Option(..., "--cash-amount", min=1, help="사용할 현금 금액."),
+    confirm: bool = typer.Option(False, "--confirm", help="실제 주문을 전송합니다."),
+    db_path: Path = typer.Option(
+        Path("data/storage/stockotter.db"),
+        "--db-path",
+        help="SQLite DB file path.",
+    ),
+    cache_path: Path | None = typer.Option(
+        None,
+        "--cache-path",
+        help="토큰 캐시 파일 경로 (기본값: data/cache/kis/token_<env>.json).",
+    ),
+) -> None:
+    """Create a buy market order. Default is dry-run until --confirm is set."""
+    service = _build_order_service_or_exit(db_path=db_path, cache_path=cache_path)
+    try:
+        order = service.place_buy_market(ticker=ticker, cash_amount=cash_amount, confirm=confirm)
+    except (KISClientError, ValueError) as exc:
+        typer.echo(_format_kis_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    _exit_if_order_failed(order)
+
+
+@kis_app.command("buy-limit")
+def kis_buy_limit(
+    ticker: str = typer.Argument(..., help="매수할 종목코드 (예: 005930)."),
+    qty: int = typer.Option(..., "--qty", min=1, help="주문 수량."),
+    price: int = typer.Option(..., "--price", min=1, help="지정가."),
+    confirm: bool = typer.Option(False, "--confirm", help="실제 주문을 전송합니다."),
+    db_path: Path = typer.Option(
+        Path("data/storage/stockotter.db"),
+        "--db-path",
+        help="SQLite DB file path.",
+    ),
+    cache_path: Path | None = typer.Option(
+        None,
+        "--cache-path",
+        help="토큰 캐시 파일 경로 (기본값: data/cache/kis/token_<env>.json).",
+    ),
+) -> None:
+    """Create a buy limit order. Default is dry-run until --confirm is set."""
+    service = _build_order_service_or_exit(db_path=db_path, cache_path=cache_path)
+    try:
+        order = service.place_buy_limit(
+            ticker=ticker,
+            qty=qty,
+            price=price,
+            confirm=confirm,
+        )
+    except (KISClientError, ValueError) as exc:
+        typer.echo(_format_kis_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    _exit_if_order_failed(order)
+
+
+@kis_app.command("sell-market")
+def kis_sell_market(
+    ticker: str = typer.Argument(..., help="매도할 종목코드 (예: 005930)."),
+    qty: int = typer.Option(..., "--qty", min=1, help="주문 수량."),
+    confirm: bool = typer.Option(False, "--confirm", help="실제 주문을 전송합니다."),
+    db_path: Path = typer.Option(
+        Path("data/storage/stockotter.db"),
+        "--db-path",
+        help="SQLite DB file path.",
+    ),
+    cache_path: Path | None = typer.Option(
+        None,
+        "--cache-path",
+        help="토큰 캐시 파일 경로 (기본값: data/cache/kis/token_<env>.json).",
+    ),
+) -> None:
+    """Create a sell market order. Default is dry-run until --confirm is set."""
+    service = _build_order_service_or_exit(db_path=db_path, cache_path=cache_path)
+    try:
+        order = service.place_sell_market(ticker=ticker, qty=qty, confirm=confirm)
+    except (KISClientError, ValueError) as exc:
+        typer.echo(_format_kis_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    _exit_if_order_failed(order)
+
+
+@kis_app.command("sell-limit")
+def kis_sell_limit(
+    ticker: str = typer.Argument(..., help="매도할 종목코드 (예: 005930)."),
+    qty: int = typer.Option(..., "--qty", min=1, help="주문 수량."),
+    price: int = typer.Option(..., "--price", min=1, help="지정가."),
+    confirm: bool = typer.Option(False, "--confirm", help="실제 주문을 전송합니다."),
+    db_path: Path = typer.Option(
+        Path("data/storage/stockotter.db"),
+        "--db-path",
+        help="SQLite DB file path.",
+    ),
+    cache_path: Path | None = typer.Option(
+        None,
+        "--cache-path",
+        help="토큰 캐시 파일 경로 (기본값: data/cache/kis/token_<env>.json).",
+    ),
+) -> None:
+    """Create a sell limit order. Default is dry-run until --confirm is set."""
+    service = _build_order_service_or_exit(db_path=db_path, cache_path=cache_path)
+    try:
+        order = service.place_sell_limit(
+            ticker=ticker,
+            qty=qty,
+            price=price,
+            confirm=confirm,
+        )
+    except (KISClientError, ValueError) as exc:
+        typer.echo(_format_kis_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    _exit_if_order_failed(order)
 
 
 @app.command("fetch-news")
@@ -855,6 +972,14 @@ def _build_kis_client_or_exit(*, cache_path: Path | None) -> KISClient:
         raise typer.Exit(code=1) from exc
 
 
+def _build_order_service_or_exit(*, db_path: Path, cache_path: Path | None) -> OrderService:
+    try:
+        return OrderService.from_env(db_path=db_path, cache_path=cache_path)
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+
 def _format_kis_error(exc: Exception) -> str:
     if isinstance(exc, KISRateLimitError):
         return f"kis_error=rate_limit detail={exc}"
@@ -895,6 +1020,30 @@ def _render_positions_table(positions: list[KISPosition]) -> str:
     body = [_line(headers), divider]
     body.extend(_line(row) for row in rows)
     return "\n".join(body)
+
+
+def _render_order_record(order: BrokerOrder) -> str:
+    return (
+        "order "
+        f"order_id={order.order_id} "
+        f"env={order.environment} "
+        f"side={order.side.value} "
+        f"type={order.order_type.value} "
+        f"ticker={order.ticker} "
+        f"qty={order.quantity} "
+        f"price={order.price if order.price is not None else '-'} "
+        f"cash_amount={order.cash_amount if order.cash_amount is not None else '-'} "
+        f"status={order.status.value} "
+        f"external_order_id={order.external_order_id or '-'} "
+        f"order_time={order.external_order_time or '-'} "
+        f"note={order.note or '-'}"
+    )
+
+
+def _exit_if_order_failed(order: BrokerOrder) -> None:
+    typer.echo(_render_order_record(order))
+    if order.status is OrderStatus.REJECTED:
+        raise typer.Exit(code=1)
 
 
 def _render_candidate_table(candidates: list[Candidate]) -> str:

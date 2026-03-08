@@ -167,6 +167,52 @@ class Candidate(DTOBase):
     risk_flags: list[str] = Field(default_factory=list)
 
 
+class OrderSide(StrEnum):
+    BUY = "buy"
+    SELL = "sell"
+
+
+class OrderType(StrEnum):
+    MARKET = "market"
+    LIMIT = "limit"
+
+
+class OrderStatus(StrEnum):
+    DRY_RUN = "dry_run"
+    PENDING_SUBMISSION = "pending_submission"
+    SUBMITTED = "submitted"
+    REJECTED = "rejected"
+
+
+class BrokerOrder(DTOBase):
+    order_id: str
+    broker: str
+    environment: str
+    ticker: str
+    side: OrderSide
+    order_type: OrderType
+    quantity: int = Field(ge=1)
+    price: int | None = Field(default=None, ge=1)
+    cash_amount: int | None = Field(default=None, ge=1)
+    status: OrderStatus
+    is_dry_run: bool = False
+    request_payload: dict[str, Any] = Field(default_factory=dict)
+    response_payload: dict[str, Any] = Field(default_factory=dict)
+    external_order_id: str | None = None
+    external_order_time: str | None = None
+    note: str = ""
+    created_at: datetime = Field(default_factory=now_in_seoul)
+    updated_at: datetime = Field(default_factory=now_in_seoul)
+    submitted_at: datetime | None = None
+
+    @field_validator("created_at", "updated_at", "submitted_at", mode="after")
+    @classmethod
+    def validate_order_datetime_fields(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        return _normalize_datetime(value)
+
+
 def json_schema_for(model_cls: type[TModel]) -> dict[str, Any]:
     return model_cls.model_json_schema()
 

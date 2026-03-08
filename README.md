@@ -150,11 +150,18 @@ make e2e
 PYTHONPATH=src .venv/bin/python -m stockotter_small kis auth-test --ticker 005930
 PYTHONPATH=src .venv/bin/python -m stockotter_small kis price 005930
 PYTHONPATH=src .venv/bin/python -m stockotter_small kis positions
+PYTHONPATH=src .venv/bin/python -m stockotter_small kis buy-market 005930 --cash-amount 150000
+PYTHONPATH=src .venv/bin/python -m stockotter_small kis buy-limit 005930 --qty 2 --price 70000
+PYTHONPATH=src .venv/bin/python -m stockotter_small kis sell-market 005930 --qty 2
+PYTHONPATH=src .venv/bin/python -m stockotter_small kis sell-limit 005930 --qty 2 --price 71000
 ```
 
 `kis positions`는 계좌 요약(balance)과 보유 종목 목록(positions)을 함께 출력합니다.
 KIS 응답은 pydantic DTO(`KISPriceQuote`, `KISAccountBalance`, `KISPosition`)로 검증되며,
 인증 오류/호출 한도 초과는 각각 별도 에러 타입으로 매핑됩니다.
+주문 커맨드는 기본적으로 dry-run이며, 실제 모의주문 전송은 `--confirm`일 때만 허용됩니다.
+실제 전송 결과와 dry-run 내역은 모두 SQLite `orders` 테이블에 저장되며,
+저장되는 request/response payload에서는 계좌번호 등 민감 필드를 redaction 합니다.
 비밀값은 로그/출력에 노출하지 않습니다.
 
 ## Config Notes

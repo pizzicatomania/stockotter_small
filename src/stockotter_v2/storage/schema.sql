@@ -81,3 +81,28 @@ CREATE TABLE IF NOT EXISTS paper_events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_paper_events_ticker_date ON paper_events (ticker, event_date);
+
+CREATE TABLE IF NOT EXISTS orders (
+    order_id TEXT PRIMARY KEY,
+    broker TEXT NOT NULL,
+    environment TEXT NOT NULL,
+    ticker TEXT NOT NULL,
+    side TEXT NOT NULL,
+    order_type TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    price INTEGER,
+    cash_amount INTEGER,
+    status TEXT NOT NULL,
+    is_dry_run INTEGER NOT NULL DEFAULT 0,
+    request_payload TEXT NOT NULL DEFAULT '{}',
+    response_payload TEXT NOT NULL DEFAULT '{}',
+    external_order_id TEXT,
+    external_order_time TEXT,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    submitted_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders (created_at);
+CREATE INDEX IF NOT EXISTS idx_orders_ticker_status ON orders (ticker, status);

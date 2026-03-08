@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, field_validator
 
 
@@ -139,3 +141,47 @@ class KISPosition(BaseModel):
             return float(text)
         except ValueError as exc:
             raise ValueError(f"invalid float-like value: {value}") from exc
+
+
+class KISOrderResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status_code: int
+    output_code: str | None = None
+    output_message: str | None = None
+    order_org_no: str | None = None
+    order_no: str | None = None
+    order_time: str | None = None
+    raw_payload: dict[str, Any]
+
+    @field_validator("status_code", mode="before")
+    @classmethod
+    def _parse_status_code(cls, value: object) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"invalid status code: {value}") from exc
+
+    @field_validator(
+        "output_code",
+        "output_message",
+        "order_org_no",
+        "order_no",
+        "order_time",
+        mode="before",
+    )
+    @classmethod
+    def _normalize_optional_text(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        return text
+
+    @field_validator("raw_payload", mode="before")
+    @classmethod
+    def _validate_raw_payload(cls, value: object) -> dict[str, Any]:
+        if not isinstance(value, dict):
+            raise ValueError("raw_payload must be a dict")
+        return value

@@ -11,7 +11,17 @@ from stockotter_v2.paper.positions import (
     PaperPosition,
     PositionState,
 )
-from stockotter_v2.schemas import Candidate, Cluster, NewsItem, StructuredEvent, now_in_seoul
+from stockotter_v2.schemas import (
+    BrokerOrder,
+    Candidate,
+    Cluster,
+    NewsItem,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    StructuredEvent,
+    now_in_seoul,
+)
 
 
 class Repository:
@@ -413,6 +423,91 @@ class Repository:
 
         return [self._row_to_paper_event(row) for row in rows]
 
+    def upsert_order(self, order: BrokerOrder) -> None:
+        payload = (
+            order.order_id,
+            order.broker,
+            order.environment,
+            order.ticker,
+            order.side.value,
+            order.order_type.value,
+            order.quantity,
+            order.price,
+            order.cash_amount,
+            order.status.value,
+            int(order.is_dry_run),
+            json.dumps(order.request_payload, ensure_ascii=False, sort_keys=True),
+            json.dumps(order.response_payload, ensure_ascii=False, sort_keys=True),
+            order.external_order_id,
+            order.external_order_time,
+            order.note,
+            order.created_at.isoformat(),
+            order.updated_at.isoformat(),
+            order.submitted_at.isoformat() if order.submitted_at is not None else None,
+        )
+        query = """
+        INSERT INTO orders (
+            order_id, broker, environment, ticker, side, order_type, quantity, price,
+            cash_amount, status, is_dry_run, request_payload, response_payload,
+            external_order_id, external_order_time, note, created_at, updated_at, submitted_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(order_id) DO UPDATE SET
+            broker=excluded.broker,
+            environment=excluded.environment,
+            ticker=excluded.ticker,
+            side=excluded.side,
+            order_type=excluded.order_type,
+            quantity=excluded.quantity,
+            price=excluded.price,
+            cash_amount=excluded.cash_amount,
+            status=excluded.status,
+            is_dry_run=excluded.is_dry_run,
+            request_payload=excluded.request_payload,
+            response_payload=excluded.response_payload,
+            external_order_id=excluded.external_order_id,
+            external_order_time=excluded.external_order_time,
+            note=excluded.note,
+            created_at=excluded.created_at,
+            updated_at=excluded.updated_at,
+            submitted_at=excluded.submitted_at
+        """
+        with self._connect() as conn:
+            conn.execute(query, payload)
+
+    def get_order(self, order_id: str) -> BrokerOrder | None:
+        query = """
+        SELECT
+            order_id, broker, environment, ticker, side, order_type, quantity, price,
+            cash_amount, status, is_dry_run, request_payload, response_payload,
+            external_order_id, external_order_time, note, created_at, updated_at, submitted_at
+        FROM orders
+        WHERE order_id = ?
+        """
+        with self._connect() as conn:
+            row = conn.execute(query, (order_id,)).fetchone()
+        if row is None:
+            return None
+        return self._row_to_order(row)
+
+    def list_orders(self, limit: int | None = None) -> list[BrokerOrder]:
+        query = """
+        SELECT
+            order_id, broker, environment, ticker, side, order_type, quantity, price,
+            cash_amount, status, is_dry_run, request_payload, response_payload,
+            external_order_id, external_order_time, note, created_at, updated_at, submitted_at
+        FROM orders
+        ORDER BY created_at DESC, order_id DESC
+        """
+        params: tuple[object, ...] = ()
+        if limit is not None:
+            query += " LIMIT ?"
+            params = (limit,)
+
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [self._row_to_order(row) for row in rows]
+
     def _init_schema(self) -> None:
         schema_path = Path(__file__).with_name("schema.sql")
         schema = schema_path.read_text(encoding="utf-8")
@@ -499,4 +594,28 @@ class Repository:
             state_before=PositionState(row["state_before"]),
             state_after=PositionState(row["state_after"]),
             note=row["note"],
+        )
+
+    @staticmethod
+    def _row_to_order(row: sqlite3.Row) -> BrokerOrder:
+        return BrokerOrder(
+            order_id=row["order_id"],
+            broker=row["broker"],
+            environment=row["environment"],
+            ticker=row["ticker"],
+            side=OrderSide(row["side"]),
+            order_type=OrderType(row["order_type"]),
+            quantity=row["quantity"],
+            price=row["price"],
+            cash_amount=row["cash_amount"],
+            status=OrderStatus(row["status"]),
+            is_dry_run=bool(row["is_dry_run"]),
+            request_payload=json.loads(row["request_payload"]),
+            response_payload=json.loads(row["response_payload"]),
+            external_order_id=row["external_order_id"],
+            external_order_time=row["external_order_time"],
+            note=row["note"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+            submitted_at=row["submitted_at"],
         )

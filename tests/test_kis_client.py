@@ -316,3 +316,103 @@ def test_kis_client_maps_transport_error_to_api_error() -> None:
 
     with pytest.raises(KISAPIError):
         client.get_price("005930")
+
+
+class _FakePostSession:
+    def __init__(self, responses: list[_FakeResponse]) -> None:
+        self.responses = list(responses)
+        self.calls: list[dict[str, object]] = []
+
+    def post(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str],
+        json: dict[str, str],
+        timeout: float,
+    ) -> _FakeResponse:
+        self.calls.append(
+            {
+                "url": url,
+                "headers": headers,
+                "json": json,
+                "timeout": timeout,
+            }
+        )
+        if not self.responses:
+            raise RuntimeError("no response queued")
+        return self.responses.pop(0)
+
+
+def test_kis_client_place_buy_market_posts_expected_payload() -> None:
+    session = _FakePostSession(
+        responses=[
+            _FakeResponse(
+                status_code=200,
+                payload={
+                    "rt_cd": "0",
+                    "msg_cd": "APBK0013",
+                    "msg1": "주문 전송 완료 되었습니다.",
+                    "output": {
+                        "KRX_FWDG_ORD_ORGNO": "91252",
+                        "ODNO": "0001234567",
+                        "ORD_TMD": "103000",
+                    },
+                },
+            )
+        ]
+    )
+    client = KISClient(token_manager=_FakeTokenManager(session=session), session=session)
+
+    response = client.place_order(
+        side="buy",
+        ticker="005930",
+        quantity=3,
+        order_type="market",
+    )
+
+    assert response.order_no == "0001234567"
+    assert response.order_time == "103000"
+    assert session.calls[0]["json"] == {
+        "CANO": "12345678",
+        "ACNT_PRDT_CD": "01",
+        "PDNO": "005930",
+        "ORD_DVSN": "01",
+        "ORD_QTY": "3",
+        "ORD_UNPR": "0",
+    }
+    assert session.calls[0]["headers"]["tr_id"] == "VTTC0011U"
+
+
+def test_kis_client_place_sell_limit_posts_expected_payload() -> None:
+    session = _FakePostSession(
+        responses=[
+            _FakeResponse(
+                status_code=200,
+                payload={
+                    "rt_cd": "0",
+                    "msg_cd": "APBK0013",
+                    "msg1": "주문 전송 완료 되었습니다.",
+                    "output": {
+                        "KRX_FWDG_ORD_ORGNO": "91252",
+                        "ODNO": "0001234568",
+                        "ORD_TMD": "103500",
+                    },
+                },
+            )
+        ]
+    )
+    client = KISClient(token_manager=_FakeTokenManager(session=session), session=session)
+
+    response = client.place_order(
+        side="sell",
+        ticker="005930",
+        quantity=2,
+        order_type="limit",
+        price=71000,
+    )
+
+    assert response.order_no == "0001234568"
+    assert session.calls[0]["json"]["ORD_DVSN"] == "00"
+    assert session.calls[0]["json"]["ORD_UNPR"] == "71000"
+    assert session.calls[0]["headers"]["tr_id"] == "VTTC0012U"

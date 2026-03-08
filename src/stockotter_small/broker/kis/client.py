@@ -8,6 +8,7 @@ import requests
 
 from stockotter_small.broker.kis.schemas import (
     KISAccountBalance,
+    KISOrderResponse,
     KISPosition,
     KISPriceQuote,
 )
@@ -15,11 +16,22 @@ from stockotter_small.broker.kis.token_manager import TokenManager, split_kis_ac
 
 _AUTH_TEST_PATH = "/uapi/domestic-stock/v1/quotations/inquire-price"
 _BALANCE_PATH = "/uapi/domestic-stock/v1/trading/inquire-balance"
+_ORDER_PATH = "/uapi/domestic-stock/v1/trading/order-cash"
 
 _PRICE_TR_ID = "FHKST01010100"
 _BALANCE_TR_ID = {
     "paper": "VTTC8434R",
     "live": "TTTC8434R",
+}
+_ORDER_TR_ID = {
+    "paper": {
+        "buy": "VTTC0011U",
+        "sell": "VTTC0012U",
+    },
+    "live": {
+        "buy": "TTTC0011U",
+        "sell": "TTTC0012U",
+    },
 }
 
 
@@ -238,6 +250,53 @@ class KISClient:
             )
         return positions
 
+    def place_order(
+        self,
+        *,
+        side: str,
+        ticker: str,
+        quantity: int,
+        order_type: str,
+        price: int | None = None,
+    ) -> KISOrderResponse:
+        normalized_side = _normalize_order_side(side)
+        ticker_code = _normalize_ticker(ticker)
+        quantity_value = _normalize_quantity(quantity)
+        normalized_order_type = _normalize_order_type(order_type)
+        order_price = _normalize_order_price(price, order_type=normalized_order_type)
+
+        payload, response = self._request_post(
+            path=_ORDER_PATH,
+            body={
+                "CANO": self._cano,
+                "ACNT_PRDT_CD": self._acnt_prdt_cd,
+                "PDNO": ticker_code,
+                "ORD_DVSN": "01" if normalized_order_type == "market" else "00",
+                "ORD_QTY": str(quantity_value),
+                "ORD_UNPR": "0" if order_price is None else str(order_price),
+            },
+            tr_id=self._order_tr_id(normalized_side),
+        )
+
+        output = payload.get("output")
+        output_data = output if isinstance(output, dict) else {}
+        return KISOrderResponse.model_validate(
+            {
+                "status_code": response.status_code,
+                "output_code": _as_optional_string(payload.get("rt_cd")),
+                "output_message": _as_optional_string(payload.get("msg1")),
+                "order_org_no": _pick(
+                    output_data,
+                    "KRX_FWDG_ORD_ORGNO",
+                    "krx_fwdg_ord_orgno",
+                    default=None,
+                ),
+                "order_no": _pick(output_data, "ODNO", "odno", default=None),
+                "order_time": _pick(output_data, "ORD_TMD", "ord_tmd", default=None),
+                "raw_payload": payload,
+            }
+        )
+
     @property
     def _balance_tr_id(self) -> str:
         tr_id = _BALANCE_TR_ID.get(self.environment)
@@ -309,6 +368,59 @@ class KISClient:
             "CTX_AREA_FK100": ctx_area_fk100,
             "CTX_AREA_NK100": ctx_area_nk100,
         }
+
+    def _request_post(
+        self,
+        *,
+        path: str,
+        body: dict[str, str],
+        tr_id: str,
+    ) -> tuple[dict[str, Any], requests.Response]:
+        try:
+            bearer_token = self.token_manager.build_bearer_token()
+        except ValueError as exc:
+            raise KISAuthError(f"KIS token error msg={exc}") from exc
+
+        try:
+            response = self.session.post(
+                f"{self.token_manager.base_url}{path}",
+                headers={
+                    "authorization": bearer_token,
+                    "appkey": self.token_manager.app_key,
+                    "appsecret": self.token_manager.app_secret,
+                    "tr_id": tr_id,
+                    "custtype": "P",
+                },
+                json=body,
+                timeout=self.timeout_seconds,
+            )
+        except requests.RequestException as exc:
+            raise KISAPIError(
+                f"KIS request transport error type={exc.__class__.__name__}"
+            ) from exc
+
+        try:
+            response.raise_for_status()
+        except requests.HTTPError as exc:
+            raise _to_kis_http_error(response=response) from exc
+
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise KISAPIError("KIS API returned non-object payload")
+
+        rt_cd = _as_optional_string(payload.get("rt_cd"))
+        if rt_cd not in {None, "0"}:
+            raise _to_kis_business_error(payload=payload, rt_cd=rt_cd)
+        return payload, response
+
+    def _order_tr_id(self, side: str) -> str:
+        environment_map = _ORDER_TR_ID.get(self.environment)
+        if environment_map is None:
+            raise ValueError(f"unsupported KIS environment for order tr_id: {self.environment}")
+        tr_id = environment_map.get(side)
+        if tr_id is None:
+            raise ValueError(f"unsupported KIS order side: {side}")
+        return tr_id
 
 
 def _to_kis_http_error(*, response: requests.Response) -> KISClientError:
@@ -414,6 +526,44 @@ def _normalize_ticker(ticker: str) -> str:
     if len(ticker_code) not in {5, 6}:
         raise ValueError("ticker must be 5 or 6 digits")
     return ticker_code.zfill(6)
+
+
+def _normalize_order_side(side: str) -> str:
+    normalized = side.strip().lower()
+    if normalized not in {"buy", "sell"}:
+        raise ValueError("side must be one of: buy, sell")
+    return normalized
+
+
+def _normalize_order_type(order_type: str) -> str:
+    normalized = order_type.strip().lower()
+    if normalized not in {"market", "limit"}:
+        raise ValueError("order_type must be one of: market, limit")
+    return normalized
+
+
+def _normalize_quantity(quantity: int) -> int:
+    try:
+        numeric = int(quantity)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("quantity must be an integer") from exc
+    if numeric <= 0:
+        raise ValueError("quantity must be > 0")
+    return numeric
+
+
+def _normalize_order_price(price: int | None, *, order_type: str) -> int | None:
+    if order_type == "market":
+        return None
+    if price is None:
+        raise ValueError("price is required for limit orders")
+    try:
+        numeric = int(price)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("price must be an integer") from exc
+    if numeric <= 0:
+        raise ValueError("price must be > 0")
+    return numeric
 
 
 def _first_row(value: object) -> dict[str, Any] | None:
